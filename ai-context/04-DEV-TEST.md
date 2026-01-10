@@ -189,24 +189,88 @@ See `06-TESTING-PATTERNS.md` for established testing patterns as they emerge.
 
 ### Deployment Options
 
-- **Vercel**: Serverless functions for API, static hosting for frontend
-- **Netlify**: Similar to Vercel
+- **Vercel**: Serverless functions for API, static hosting for frontend (✅ Configured)
+- **Netlify**: Similar to Vercel (requires similar configuration)
 - **AWS Lambda**: Serverless functions
 - **Traditional hosting**: Node.js server + static files
+
+### Deploying to Vercel
+
+The application is configured for Vercel deployment with:
+- `vercel.json` - Vercel configuration for routing and rewrites
+- `api/index.js` - Serverless function entry point that exports the Express app
+
+**Steps to Deploy:**
+
+1. **Install Vercel CLI** (optional, for local testing):
+   ```bash
+   npm i -g vercel
+   ```
+
+2. **Deploy via Vercel Dashboard**:
+   - Push your code to GitHub/GitLab/Bitbucket
+   - Import the repository in Vercel dashboard
+   - Vercel will automatically detect the configuration
+
+3. **Or deploy via CLI**:
+   ```bash
+   vercel
+   ```
+
+4. **Configure Environment Variables** in Vercel Dashboard:
+   - Go to your project settings → Environment Variables
+   - Add the following variables:
+     - `GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY` - **Important**: Use the JSON string format (the entire JSON key file content as a single string)
+     - `GOOGLE_SHEETS_SPREADSHEET_ID` - Your Google Sheet ID
+     - `NODE_ENV=production` (optional, but recommended)
+
+   **Note for `GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY`**:
+   - Since Vercel doesn't support file paths, you MUST use the JSON string format
+   - Paste the entire contents of your service account JSON key file
+   - Vercel will handle escaping/parsing automatically
+   - Example format: `{"type":"service_account","project_id":"your-project",...}`
+
+5. **Redeploy** after adding environment variables (Vercel will automatically redeploy, or you can trigger manually)
 
 ### Environment Variables
 
 Set in deployment platform:
-- `GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY` (or OAuth credentials)
-- `GOOGLE_SHEETS_SPREADSHEET_ID`
-- `NODE_ENV=production`
+- `GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY` - **JSON string format** (not file path) for Vercel/serverless platforms
+- `GOOGLE_SHEETS_SPREADSHEET_ID` - Your Google Sheet ID
+- `NODE_ENV=production` (optional, but recommended)
+
+**Important**: When deploying to serverless platforms like Vercel:
+- **Do NOT use file paths** for `GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY`
+- **Use JSON string format** - paste the entire JSON content as a single-line string
+- The application's `credentials.js` will automatically detect and handle JSON string format
+
+### How Vercel Configuration Works
+
+- **API Routes** (`/api/*`): Handled by `api/index.js` serverless function
+- **Static Files** (HTML, CSS, JS): Served directly from `src/frontend/` via rewrites
+- **SPA Routing**: All non-API routes serve `index.html` for client-side routing
+- **Build Process**: Runs `npm run build` (which validates tests) before deployment
+
+### Testing Deployment Locally
+
+You can test the Vercel configuration locally:
+
+```bash
+# Install Vercel CLI globally
+npm i -g vercel
+
+# Run Vercel dev server (simulates production)
+vercel dev
+```
 
 ### Post-Deployment
 
 1. Verify Google Sheets API credentials work in production
-2. Test all CRUD operations
+2. Test all CRUD operations (create, read, update, delete clients and workouts)
 3. Monitor for rate limiting issues
-4. Check error logs
+4. Check error logs in Vercel dashboard
+5. Verify static assets are loading correctly (CSS, JS)
+6. Test API endpoints: `/api/clients`, `/api/workouts`, etc.
 
 ---
 
