@@ -2,6 +2,8 @@
 
 A web application for personal gym trainers to organize and manage their clients' workout data. The app provides a clean, simple interface for non-technical trainers to input, organize, and view client information and workout sessions, with Google Sheets serving as the backend data store.
 
+Version 1.0.0
+
 ## Features
 
 - **Client Management**: Add and view clients with contact information
