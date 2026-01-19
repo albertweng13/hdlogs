@@ -8,15 +8,23 @@
   },
   "rewrites": [
     {
-      "source": "/api/(.*)",
+      "source": "/api/:path*",
       "destination": "/api/index.js"
     },
     {
-      "source": "/(.*\\.(html|css|js|json|ico|png|jpg|jpeg|svg|woff|woff2|ttf|eot))",
-      "destination": "/src/frontend/$1"
+      "source": "/index.html",
+      "destination": "/src/frontend/index.html"
     },
     {
-      "source": "/(.*)",
+      "source": "/styles.css",
+      "destination": "/src/frontend/styles.css"
+    },
+    {
+      "source": "/app.js",
+      "destination": "/src/frontend/app.js"
+    },
+    {
+      "source": "/:path*",
       "destination": "/src/frontend/index.html"
     }
   ]
