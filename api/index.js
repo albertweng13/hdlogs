@@ -16,9 +16,11 @@ app.use(cors());
 app.use(express.json());
 
 // API routes
+// Note: Vercel routes /api/* requests to this function
+// The /api prefix is preserved in the request path
 app.use('/api', routes);
 
 // Export the app for Vercel serverless functions
-// Note: Static file serving is handled by Vercel's rewrites in vercel.json
+// Vercel will automatically handle the request/response
 export default app;
 
