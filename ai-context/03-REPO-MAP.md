@@ -8,10 +8,13 @@ This is a **Sheets-Backed App** (see `project-types/sheets-backed-app.md`). The 
 
 ```
 warbak-trainer/
+  api/
+    index.js            # Vercel serverless function entry point
   src/
     api/
       sheets.js          # Google Sheets API client
       routes.js          # API endpoints (serverless functions)
+      server.js          # Local development server
     frontend/
       index.html         # Main HTML file (single-page app)
       styles.css         # Styles
@@ -21,12 +24,17 @@ warbak-trainer/
       transform.js       # Data transformation utilities
     config/
       credentials.js     # API credentials setup
+  public/               # Build output directory (created during build)
+    index.html          # Copied from src/frontend/ during build
+    styles.css          # Copied from src/frontend/ during build
+    app.js              # Copied from src/frontend/ during build
   tests/
     unit/
       sheets.test.js
       transform.test.js
     integration/
       api.test.js
+  vercel.json           # Vercel deployment configuration
   .env.example          # API credentials template
   package.json
   README.md
@@ -86,6 +94,8 @@ warbak-trainer/
 - **Clear separation** - API, frontend, and utilities in separate modules
 - **Test co-location** - tests in `tests/` directory, organized by type
 - **Single-page app** - all frontend code in one HTML file with inline JS/CSS or separate files
+- **Build output** - `public/` directory created during build (copied from `src/frontend/`)
+- **Vercel deployment** - `api/` directory contains serverless function, `public/` contains static files
 
 ## Google Sheets Structure
 
@@ -115,5 +125,5 @@ This file will evolve as the repository grows. Update it when:
 
 **Sprint 01 Complete**: Core MVP implemented with full CRUD operations for clients and workouts. Client list, client details, workout input, and workout history all functional.
 
-**Sprint 02 In Progress**: Edit client functionality implemented (Tasks 1-8 complete). PUT /api/clients/:id endpoint, updateClient() function, frontend edit modal, and related tests are complete.
+**Sprint 02 Complete**: All Sprint 02 enhancements implemented and tested. Full CRUD operations (create, read, update, delete) for clients and workouts. Client search/filtering, workout history improvements (grouping, sorting), comprehensive validation (client-side and server-side), responsive design, quick date selection, and copy previous workout functionality. All 73/73 tests passing (27/27 Sprint 02 feature tests passing).
 

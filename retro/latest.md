@@ -13,28 +13,33 @@ Retrospectives are **first-class** in this repository. They serve to:
 
 ## Latest Summary
 
-**Last Updated**: 2026-01-10 (Sprint 01 Retro)
+**Last Updated**: 2026-01-XX (Sprint 02 Retro)
 
 ### What Went Well
-- Sprint 01 completed successfully with all code tasks done
-- Comprehensive test coverage achieved (34/35 unit tests passing, all integration tests created)
-- Good error handling improvements after debugging (diagnostic endpoint, better error messages)
-- Automatic sheet initialization reduces setup friction
-- Decision documentation pattern worked well (two-sheet structure evaluation)
+- Sprint 02 completed successfully with all development tasks done (Tasks 1-67)
+- Comprehensive test coverage achieved (73/73 tests passing, 27/27 Sprint 02 feature tests passing)
+- Full CRUD operations implemented for clients and workouts
+- Enhanced user experience features (search, validation, responsive design, workout enhancements)
+- Error handling improvements significantly improved debugging experience
+- Route ordering issue discovered and fixed, preventing future problems
+- Vercel deployment configuration successfully resolved
 
 ### What Went Poorly
-- Server restart requirement discovered late - should have been documented upfront
-- Debug findings about server restart weren't immediately propagated to debugging docs (process improvement needed)
-- ES module mocking issue in one unit test (non-blocking, but noted)
+- Express route ordering issue caused 404 errors - discovered during debugging, should have been prevented
+- Generic error messages initially masked actual issues - improved during debugging
+- Documentation updates sometimes lagged behind implementation
+- Multiple reminders needed about server restart after route/middleware changes
 
 ### Key Improvements
-- **Immediate context propagation**: Debug findings should update ai-context files immediately during debugging, not wait for retro
-- **Proactive documentation**: Document common setup issues (like server restart requirement) upfront in debugging sections
-- **Better error handling**: Improved error messages and diagnostic endpoints help debugging significantly
+- **Express route ordering documented**: Route ordering pattern (most specific first) now documented to prevent future issues
+- **Middleware ordering enforced**: API routes before static middleware pattern documented and enforced
+- **Comprehensive error handling**: Detailed error messages and logging pattern established
+- **Incremental documentation**: Process improved to update documentation during implementation
 
 ## Sprint Retros
 
 - [Sprint 01 Retro](./sprint-01.md) - [Status: COMPLETE]
+- [Sprint 02 Retro](./sprint-02.md) - [Status: COMPLETE]
 
 ## Evaluation Retros
 
@@ -42,27 +47,37 @@ Retrospectives are **first-class** in this repository. They serve to:
 
 ## Process Learnings
 
-**Last Updated**: 2026-01-10
+**Last Updated**: 2026-01-XX (Sprint 02 Retro)
 
 As retros are completed, aggregate learnings here:
 
 - **Design learnings**: 
   - MVP design held up well during implementation - no design changes needed
   - Evaluating user requests against design principles (like two-sheet vs. one-tab-per-client) leads to better decisions that align with MVP simplicity
+  - Sprint 02 enhancements (edit/delete, search, validation, responsive design) all fit well within MVP scope
 
 - **Process learnings**: 
   - **Critical**: Debug findings should be propagated to ai-context files immediately during debugging, not deferred to retro. This ensures future agents have context right away.
-  - Proactive documentation of common issues (like server restart requirement) prevents repeated debugging time
+  - Proactive documentation of common issues (like server restart requirement, route ordering) prevents repeated debugging time
   - Diagnostic tools (like `/api/debug/sheets`) significantly improve debugging experience
+  - **Document patterns upfront**: Express route ordering and middleware ordering patterns should be documented before implementation to prevent debugging time
+  - **Incremental documentation**: Update documentation during implementation, not just during debugging or retro
 
 - **Technical learnings**: 
   - Environment variables in Node.js are loaded at server startup - server must be restarted after `.env` changes
+  - **Express route ordering is critical**: More specific routes must come before less specific ones, even with different HTTP methods. Wrong ordering causes 404 errors.
+  - **Middleware ordering matters**: API routes must be registered before static file middleware to avoid routing conflicts
+  - Express doesn't hot-reload routes or middleware - server restart needed after route/middleware changes
+  - DELETE endpoints return 204 No Content - frontend must handle this properly
   - Automatic sheet initialization (creating sheets/headers if missing) reduces setup friction and prevents errors
   - Better error messages that list available sheets help users debug faster
+  - Generic error messages hide actual issues - detailed error messages significantly improve debugging experience
 
 - **Tool learnings**: 
   - Jest ES module mocking can be tricky - one test has a non-blocking issue that may need configuration adjustment
   - Google Sheets API error messages can be cryptic - adding diagnostic information significantly helps debugging
+  - Vercel auto-detects Node.js runtime from `api/` directory - don't specify `runtime` in `functions` section
+  - Vercel requires `outputDirectory: "public"` and build command must create the directory
 
 ## How to Record Retros
 

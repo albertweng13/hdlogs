@@ -173,12 +173,31 @@ See `06-TESTING-PATTERNS.md` for established testing patterns as they emerge.
    - Verify sheet is shared with service account (if using Service Account)
    - If missing sheet error occurs, use `/api/debug/sheets` to see available sheets and get better error messages
 
-3. **Rate Limiting**:
+3. **Express Route Ordering**:
+   - **Critical**: More specific routes must come before less specific ones in Express Router
+   - Example: `GET /clients/:id/workouts` must come BEFORE `PUT /clients/:id` and `DELETE /clients/:id`
+   - Even with different HTTP methods, Express Router matches routes in order
+   - If routes are in wrong order, Express will return 404 HTML page instead of JSON error
+   - **Best Practice**: Define routes from most specific to least specific
+
+4. **Express Middleware Ordering**:
+   - **API routes must be registered BEFORE static file middleware** to avoid routing conflicts
+   - Order: CORS → JSON parser → API routes → Static files
+   - If API routes come after static middleware, Express may try to serve static files for API requests
+   - **Best Practice**: Register API routes before static file serving
+
+5. **Server Restart After Route Changes**:
+   - **Always restart the server** after adding new routes (PUT, DELETE, etc.)
+   - Express doesn't hot-reload route definitions
+   - Route won't work until server restarts, even if code is correct
+   - Check server console for route registration during startup
+
+6. **Rate Limiting**:
    - Google Sheets API has rate limits
    - Implement retry logic with exponential backoff
    - Consider caching for read operations
 
-4. **Data Format Issues**:
+7. **Data Format Issues**:
    - Verify sheet column structure matches expected format
    - Check JSON parsing for exercises data
    - Validate data types (dates, numbers)
@@ -255,28 +274,39 @@ Set in deployment platform:
   - Node.js runtime auto-detected by Vercel (no `functions` section needed)
   - Node.js version specified in `package.json` engines field (`20.x`)
   - Vercel automatically treats files in `api/` directory as serverless functions
-- **Static Files** (HTML, CSS, JS): Served directly from `src/frontend/` via rewrites
+  - Rewrite: `/api/:path*` → `/api/index.js`
+- **Static Files** (HTML, CSS, JS): Served from `public/` directory
+  - Build command copies files from `src/frontend/` to `public/`
+  - Vercel serves files from `public/` automatically (no rewrites needed for static files)
+  - `outputDirectory: "public"` in `vercel.json` tells Vercel where to find static files
 - **SPA Routing**: All non-API routes serve `index.html` for client-side routing
-- **Build Process**: Runs `npm run build` (simple validation) before deployment
-- **Configuration File**: `vercel.json` uses `rewrites` for routing (no `functions` section needed for Node.js)
+  - Rewrite: `/:path*` → `/index.html` (catch-all for SPA routing)
+- **Build Process**: 
+  - Runs `npm run build` which creates `public/` directory and copies static files
+  - Build command: `mkdir -p public && cp -r src/frontend/* public/`
+- **Configuration File**: `vercel.json` uses `outputDirectory` and `rewrites` (no `functions` section needed for Node.js)
 
 ### Vercel Configuration Details
 
 The `vercel.json` file contains:
 - `version: 2` - Uses Vercel's modern configuration format
-- `buildCommand` - Runs `npm run build` (simple validation, no tests)
+- `buildCommand` - Runs `npm run build` (copies files to `public/` directory)
+- `outputDirectory: "public"` - Tells Vercel where to find static files after build
 - `rewrites` - Routes requests:
-  - `/api/*` → `api/index.js` (serverless function)
-  - Static files (`index.html`, `styles.css`, `app.js`) → `src/frontend/`
-  - All other routes → `src/frontend/index.html` (SPA fallback)
+  - `/api/:path*` → `/api/index.js` (serverless function)
+  - `/:path*` → `/index.html` (SPA catch-all for client-side routing)
+  - Static files are served automatically from `public/` - no rewrites needed
 
 **Important Configuration Notes**:
 - ✅ **NO `functions` section needed** - Vercel auto-detects Node.js runtime for files in `api/` directory
+- ✅ **`outputDirectory: "public"` required** - Vercel expects static files in `public/` after build
+- ✅ **Build command must create `public/`** - Copy files from `src/frontend/` to `public/` during build
 - ✅ Uses `rewrites` (not `routes`) - mixing them causes errors
-- ✅ Uses `path-to-regexp` syntax (not full RegExp) for route patterns
-- ✅ Build command is simple (`echo`) - tests run separately with `npm run build:test`
+- ✅ Uses `path-to-regexp` syntax (not full RegExp) for route patterns (e.g., `/:path*`)
+- ✅ Static files served automatically from `public/` - no rewrites needed for HTML/CSS/JS
 - ✅ Node.js version specified in `package.json` engines field (`20.x`) - Vercel reads this automatically
 - ⚠️ **Do NOT add `functions` section with `runtime`** - This causes "Function Runtimes must have a valid version" error
+- ⚠️ **Build command must actually create files** - Not just echo a message, must copy files to `public/`
 
 ### Testing Deployment Locally
 
@@ -296,15 +326,20 @@ vercel dev
 1. **Mixed routing properties**: Cannot use both `routes` and `rewrites` - use only `rewrites`
 2. **Invalid route source pattern**: Must use `path-to-regexp` syntax, not full RegExp
 3. **Function runtime errors**: Removed `functions` section - Vercel auto-detects Node.js runtime from `api/` directory and `engines` in `package.json`
+4. **Output directory errors**: Added `outputDirectory: "public"` and build command copies files to `public/`
+5. **404 errors**: Fixed routing - static files served from `public/`, simplified rewrites
 
 **If deployment fails**, check:
 - `vercel.json` syntax is valid JSON
 - **NO `functions` section** - Vercel auto-detects Node.js for files in `api/` directory
+- **`outputDirectory: "public"` is set** - Vercel expects static files in `public/` after build
+- **Build command creates `public/`** - Must copy files from `src/frontend/` to `public/`
 - `package.json` has `engines.node` field specifying Node.js version (e.g., `"20.x"`)
 - Only `rewrites` is used (not `routes`)
 - Route patterns use `path-to-regexp` syntax (e.g., `/:path*` not `/(.*)`)
 - Environment variables are set in Vercel dashboard
 - Files in `api/` directory are properly structured (e.g., `api/index.js` exports Express app)
+- `public/` directory exists after build (check build logs)
 
 ### Post-Deployment
 

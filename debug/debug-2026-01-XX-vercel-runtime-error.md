@@ -1,11 +1,17 @@
-# Debug Session: Vercel Deployment Runtime Error
+# Debug Session: Vercel Deployment Errors
 
 **Date**: 2026-01-XX  
-**Issue**: Vercel deployment error - "Function Runtimes must have a valid version, for example `now-php@1.0.0`"
+**Issues**: 
+1. Vercel deployment error - "Function Runtimes must have a valid version, for example `now-php@1.0.0`"
+2. Vercel deployment error - "No Output Directory named 'public' found after the Build completed"
+3. 404 NOT_FOUND errors after deployment
 
 ## Issue Summary
 
-Vercel deployment was failing with a runtime error indicating that function runtimes must have a valid version. The error occurred because Vercel was unable to auto-detect the Node.js runtime for the serverless function in `api/index.js`.
+Multiple Vercel deployment errors occurred:
+1. **Runtime Error**: "Function Runtimes must have a valid version" - caused by incorrect runtime specification
+2. **Output Directory Error**: "No Output Directory named 'public' found" - Vercel expected a `public` directory after build
+3. **404 Errors**: Static files not being served correctly due to incorrect routing configuration
 
 ## Root Cause
 
@@ -15,21 +21,23 @@ The error occurred because the `runtime` format `nodejs20.x` in the `functions` 
 
 ## Solution (FINAL - WORKING)
 
-**The Fix**: Remove `functions` section entirely and rely on Vercel's auto-detection:
+### Fix 1: Runtime Detection
+**Removed `functions` section entirely** - rely on Vercel's auto-detection:
+- Vercel automatically detects Node.js runtime for files in `api/` directory
+- No explicit runtime specification needed for official Node.js runtime
+- Keep `engines` field in `package.json`: `"node": "20.x"` (specific version, not range)
 
-1. **Removed `functions` section from `vercel.json` completely**:
-   - Vercel automatically detects Node.js runtime for files in `api/` directory
-   - No explicit runtime specification needed for official Node.js runtime
-   - The error was caused by trying to specify a runtime format that Vercel didn't recognize
+### Fix 2: Output Directory
+**Added `outputDirectory: "public"` and updated build command**:
+- Set `outputDirectory: "public"` in `vercel.json`
+- Updated build command to copy files: `"build": "mkdir -p public && cp -r src/frontend/* public/ && echo '✅ Build completed'"`
+- Vercel expects static files in `public/` directory after build
 
-2. **Keep `engines` field in `package.json`**:
-   - Set to `"node": "20.x"` (specific version, not range)
-   - Vercel uses this to determine Node.js version
-   - Warning message confirms Vercel is reading this correctly
-
-3. **Keep API rewrite in `vercel.json`**:
-   - `"source": "/api/:path*"` → `"destination": "/api/index.js"`
-   - This routes all API requests to the serverless function
+### Fix 3: Routing Configuration
+**Simplified rewrites** - Vercel serves files from `public/` automatically:
+- API routes: `"/api/:path*"` → `"/api/index.js"` (serverless function)
+- SPA catch-all: `"/:path*"` → `"/index.html"` (for client-side routing)
+- Static files (HTML, CSS, JS) are served automatically from `public/` - no rewrites needed
 
 **What Didn't Work**:
 - `"runtime": "nodejs20.x"` - Invalid format
@@ -41,24 +49,48 @@ The error occurred because the `runtime` format `nodejs20.x` in the `functions` 
 
 ## Context Files Updated
 
-- ✅ `vercel.json` - Removed `functions` section completely (let Vercel auto-detect Node.js runtime)
-- ✅ `package.json` - Updated `engines` field from `">=18.0.0"` to `"20.x"` for specific version
-- ✅ `ai-context/04-DEV-TEST.md` - Updated to reflect auto-detection approach (no `functions` section needed)
+- ✅ `vercel.json`:
+  - Removed `functions` section (let Vercel auto-detect Node.js runtime)
+  - Added `outputDirectory: "public"`
+  - Simplified rewrites (API route + SPA catch-all)
+- ✅ `package.json`:
+  - Updated `engines` field from `">=18.0.0"` to `"20.x"` for specific version
+  - Updated `build` script to copy files from `src/frontend/` to `public/`
+  - Updated Jest dependencies to reduce deprecated warnings
+- ✅ `public/` directory created (with `.gitkeep` to keep in git)
+- ✅ `ai-context/04-DEV-TEST.md` - Updated with complete Vercel configuration
 
 ## Result
 
-✅ **Build Successful** - Deployment now works correctly. Vercel auto-detects Node.js 20.x from `engines` field and treats `api/index.js` as a serverless function automatically.
+✅ **Deployment Successful** - All issues resolved:
+- Runtime auto-detected correctly (no `functions` section needed)
+- Build process copies static files to `public/` directory
+- Static files served correctly from `public/`
+- API routes working via serverless function
+- SPA routing working via catch-all rewrite
 
 ## Prevention Strategy
 
-- Use `engines` field in `package.json` for Node.js version (recommended by Vercel)
-- Avoid explicit `runtime` in `functions` section unless necessary (can cause format errors)
-- If explicit runtime is needed, use correct format: `vercel/node@20.x` (not `nodejs20.x`)
+1. **Runtime Configuration**:
+   - Use `engines` field in `package.json` for Node.js version (recommended by Vercel)
+   - **DO NOT** add `functions` section with `runtime` - causes "Function Runtimes must have a valid version" error
+   - Vercel auto-detects Node.js for files in `api/` directory
+
+2. **Build Process**:
+   - Always set `outputDirectory: "public"` in `vercel.json` when using static files
+   - Build command must copy/create files in `public/` directory
+   - Vercel expects `public/` directory to exist after build completes
+
+3. **Routing**:
+   - Use `rewrites` (not `routes`) for routing configuration
+   - Static files in `public/` are served automatically - no rewrites needed
+   - Only need rewrites for API routes and SPA catch-all
 
 ## Key Learnings
 
-- Vercel's recommended approach is to use `engines` in `package.json` and let it auto-detect
-- The runtime format `nodejs20.x` is incorrect - should be `vercel/node@20.x` if explicitly needed
-- Removing the `functions` section and relying on `engines` is the preferred solution
-- If explicit runtime is required, must use format: `vercel/node@20.x` or `@vercel/node@20.x`
+- **Runtime**: Vercel auto-detects Node.js from `api/` directory + `engines` in `package.json`. DO NOT specify `runtime` in `functions` section.
+- **Output Directory**: When using `outputDirectory: "public"`, build command must create/copy files to `public/` directory.
+- **Static Files**: Files in `public/` are served automatically. Only need rewrites for API routes and SPA routing.
+- **Build Command**: Must actually create the output directory structure, not just echo a message.
+- **Deprecated Warnings**: npm deprecated warnings from transitive dependencies (like Jest) are non-critical and can be ignored.
 

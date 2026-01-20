@@ -103,6 +103,42 @@ Alternative considered: Require manual sheet/header setup
 - Adds setup complexity and potential for errors
 - Less user-friendly for non-technical users
 
+**2026-01-10 | Express Route Ordering Pattern | Prevent 404 Route Errors**
+
+Decision: Define Express Router routes from most specific to least specific, even with different HTTP methods.
+
+Reason:
+- Express Router matches routes in order, and more specific routes must come before less specific ones
+- Example: `GET /clients/:id/workouts` must come before `PUT /clients/:id` and `DELETE /clients/:id`
+- Wrong ordering causes Express to return 404 HTML page instead of JSON error, making debugging difficult
+- Prevents routing conflicts and ensures proper route matching
+
+Implementation:
+- Route order in `src/api/routes.js`:
+  1. GET `/clients/:id/workouts` (most specific - must come first)
+  2. PUT `/clients/:id` (less specific)
+  3. DELETE `/clients/:id` (same specificity as PUT)
+- Comments added to routes explaining ordering requirements
+- Middleware order: API routes registered before static file middleware
+
+**2026-01-10 | Comprehensive Error Handling | Improve Debugging Experience**
+
+Decision: Provide detailed error messages and logging throughout the application, both frontend and backend.
+
+Reason:
+- Generic error messages (like "Request failed") hide actual issues and make debugging difficult
+- Detailed error messages help users and developers identify problems faster
+- Better error handling reveals root causes (e.g., route ordering issues, missing data)
+- Improves user experience with actionable error messages
+
+Implementation:
+- Backend: Detailed error logging with context (range, rowIndex, sheetRowNumber, spreadsheetId)
+- Backend: Error messages list available options when resource not found (e.g., available client IDs)
+- Frontend: Parse error responses properly, handle both JSON and non-JSON errors
+- Frontend: Show actual HTTP status and error text instead of generic messages
+- Frontend: Handle 204 No Content responses for DELETE endpoints
+- Diagnostic endpoint `/api/debug/sheets` for quick setup verification
+
 ---
 
 ## Decision Categories
