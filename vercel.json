@@ -9,20 +9,8 @@
       "destination": "/api/index.js"
     },
     {
-      "source": "/index.html",
-      "destination": "/src/frontend/index.html"
-    },
-    {
-      "source": "/styles.css",
-      "destination": "/src/frontend/styles.css"
-    },
-    {
-      "source": "/app.js",
-      "destination": "/src/frontend/app.js"
-    },
-    {
       "source": "/:path*",
-      "destination": "/src/frontend/index.html"
+      "destination": "/index.html"
     }
   ]
 }

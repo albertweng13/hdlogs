@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node src/api/server.js",
     "start": "node src/api/server.js",
-    "build": "echo '✅ Build completed'",
+    "build": "mkdir -p public && cp -r src/frontend/* public/ && echo '✅ Build completed'",
     "build:test": "npm run test && echo '✅ Build validation passed'",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
