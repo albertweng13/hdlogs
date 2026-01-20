@@ -252,12 +252,13 @@ Set in deployment platform:
 ### How Vercel Configuration Works
 
 - **API Routes** (`/api/*`): Handled by `api/index.js` serverless function
-  - Vercel automatically detects Node.js runtime for files in `api/` directory
-  - No explicit runtime configuration needed (auto-detection)
+  - Node.js runtime explicitly specified in `vercel.json` functions section (`nodejs20.x`)
+  - Node.js version also specified in `package.json` engines field (`>=18.0.0`)
+  - Explicit runtime configuration ensures reliable deployment
 - **Static Files** (HTML, CSS, JS): Served directly from `src/frontend/` via rewrites
 - **SPA Routing**: All non-API routes serve `index.html` for client-side routing
 - **Build Process**: Runs `npm run build` (simple validation) before deployment
-- **Configuration File**: `vercel.json` uses only `rewrites` (not `routes`) for compatibility
+- **Configuration File**: `vercel.json` uses `functions` section for runtime and `rewrites` for routing
 
 ### Vercel Configuration Details
 
@@ -270,10 +271,11 @@ The `vercel.json` file contains:
   - All other routes → `src/frontend/index.html` (SPA fallback)
 
 **Important Configuration Notes**:
-- ✅ Uses only `rewrites` (not `routes`) - mixing them causes errors
-- ✅ No `functions` section needed - Vercel auto-detects Node.js runtime
+- ✅ Uses `functions` section to explicitly specify Node.js runtime (`nodejs20.x`)
+- ✅ Uses `rewrites` (not `routes`) - mixing them causes errors
 - ✅ Uses `path-to-regexp` syntax (not full RegExp) for route patterns
 - ✅ Build command is simple (`echo`) - tests run separately with `npm run build:test`
+- ✅ Node.js version specified in `package.json` engines field for consistency
 
 ### Testing Deployment Locally
 
@@ -292,13 +294,14 @@ vercel dev
 **Fixed Issues** (already resolved in current configuration):
 1. **Mixed routing properties**: Cannot use both `routes` and `rewrites` - use only `rewrites`
 2. **Invalid route source pattern**: Must use `path-to-regexp` syntax, not full RegExp
-3. **Function runtime errors**: No need to specify runtime - Vercel auto-detects Node.js for `api/` directory
+3. **Function runtime errors**: Runtime explicitly specified in `vercel.json` functions section (`nodejs20.x`) and `package.json` engines field
 
 **If deployment fails**, check:
 - `vercel.json` syntax is valid JSON
+- `functions` section specifies valid Node.js runtime (e.g., `nodejs20.x` or `nodejs18.x`)
+- `package.json` has `engines.node` field specifying Node.js version
 - Only `rewrites` is used (not `routes`)
 - Route patterns use `path-to-regexp` syntax (e.g., `/:path*` not `/(.*)`)
-- No `functions` section with invalid runtime format
 - Environment variables are set in Vercel dashboard
 
 ### Post-Deployment
