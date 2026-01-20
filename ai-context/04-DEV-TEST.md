@@ -45,12 +45,17 @@ cp .env.example .env
 ### Build for Production
 
 ```bash
-# Build for production
+# Build for production (simple validation)
 npm run build
+
+# Build with tests (run before deploying)
+npm run build:test
 
 # Deploy (example for Vercel/Netlify)
 npm run deploy
 ```
+
+**Note**: The `build` script is simplified for Vercel deployment (doesn't run tests). Run `npm run build:test` locally before deploying to ensure everything passes.
 
 ## Development Workflow
 
@@ -247,9 +252,28 @@ Set in deployment platform:
 ### How Vercel Configuration Works
 
 - **API Routes** (`/api/*`): Handled by `api/index.js` serverless function
+  - Vercel automatically detects Node.js runtime for files in `api/` directory
+  - No explicit runtime configuration needed (auto-detection)
 - **Static Files** (HTML, CSS, JS): Served directly from `src/frontend/` via rewrites
 - **SPA Routing**: All non-API routes serve `index.html` for client-side routing
-- **Build Process**: Runs `npm run build` (which validates tests) before deployment
+- **Build Process**: Runs `npm run build` (simple validation) before deployment
+- **Configuration File**: `vercel.json` uses only `rewrites` (not `routes`) for compatibility
+
+### Vercel Configuration Details
+
+The `vercel.json` file contains:
+- `version: 2` - Uses Vercel's modern configuration format
+- `buildCommand` - Runs `npm run build` (simple validation, no tests)
+- `rewrites` - Routes requests:
+  - `/api/*` → `api/index.js` (serverless function)
+  - Static files (`index.html`, `styles.css`, `app.js`) → `src/frontend/`
+  - All other routes → `src/frontend/index.html` (SPA fallback)
+
+**Important Configuration Notes**:
+- ✅ Uses only `rewrites` (not `routes`) - mixing them causes errors
+- ✅ No `functions` section needed - Vercel auto-detects Node.js runtime
+- ✅ Uses `path-to-regexp` syntax (not full RegExp) for route patterns
+- ✅ Build command is simple (`echo`) - tests run separately with `npm run build:test`
 
 ### Testing Deployment Locally
 
@@ -262,6 +286,20 @@ npm i -g vercel
 # Run Vercel dev server (simulates production)
 vercel dev
 ```
+
+### Common Vercel Deployment Issues
+
+**Fixed Issues** (already resolved in current configuration):
+1. **Mixed routing properties**: Cannot use both `routes` and `rewrites` - use only `rewrites`
+2. **Invalid route source pattern**: Must use `path-to-regexp` syntax, not full RegExp
+3. **Function runtime errors**: No need to specify runtime - Vercel auto-detects Node.js for `api/` directory
+
+**If deployment fails**, check:
+- `vercel.json` syntax is valid JSON
+- Only `rewrites` is used (not `routes`)
+- Route patterns use `path-to-regexp` syntax (e.g., `/:path*` not `/(.*)`)
+- No `functions` section with invalid runtime format
+- Environment variables are set in Vercel dashboard
 
 ### Post-Deployment
 
