@@ -129,11 +129,17 @@ The following features are **explicitly excluded** from Iteration 1:
 
 **Clients Sheet:**
 - Columns: clientId, name, email, phone, notes, createdAt
+- Each row represents one client
 
 **Workouts Sheet:**
-- Columns: workoutId, clientId, date, exercises (JSON string or structured columns), notes, createdAt
+- Columns: workoutId, clientId, date, exerciseName, setNumber, reps, weight, volume, notes, createdAt
+- Each row represents one set of one exercise in one workout session
+- Multiple rows share the same workoutId to represent a complete workout session
+- Normalized structure (one row per set) enables easy querying and metrics calculation
+- `volume` = `reps × weight` (calculated per set, stored for easy aggregation)
+- `setNumber`: Sequential number for sets within an exercise (1, 2, 3...)
 
-*Note: Exact sheet structure will be finalized during implementation. May use separate sheets for clients and workouts, or structured columns for exercises/sets.*
+**Note**: The application uses the workout object structure (with exercises array) internally, but stores data in normalized rows in Google Sheets. This enables future metrics and progression tracking while maintaining a clean application API.
 
 ## Success Criteria for Iteration 1
 

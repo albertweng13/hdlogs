@@ -34,6 +34,8 @@ warbak-trainer/
       transform.test.js
     integration/
       api.test.js
+  scripts/
+    # (No scripts currently - migration script removed after Sprint 03 migration complete)
   vercel.json           # Vercel deployment configuration
   .env.example          # API credentials template
   package.json
@@ -60,11 +62,11 @@ warbak-trainer/
 
 ### `src/frontend/`
 - **index.html**: Single-page application HTML
-  - Client list panel (left side)
+  - Client list panel (left side) with hoverable delete X buttons next to each client name
   - Client details/workout history panel (right side)
   - Client modal for adding/editing clients
   - Forms for adding clients and workouts
-  - Edit and Delete client buttons in client details section
+  - Edit client button in client details section (delete moved to sidebar)
 - **app.js**: Main application logic
   - State management (clients, selected client, workouts, editing state)
   - API calls to backend (CRUD operations)
@@ -88,6 +90,9 @@ warbak-trainer/
 - **unit/**: Unit tests for utilities and business logic
 - **integration/**: Integration tests for API endpoints with Google Sheets
 
+### `scripts/`
+- **Currently empty** - Migration script was removed after Sprint 03 migration was completed and verified
+
 ## File Organization Principles
 
 - **Logical grouping** - related code together
@@ -106,12 +111,15 @@ The application uses two Google Sheets:
 - Each row represents one client
 
 ### Workouts Sheet
-- Columns: `workoutId`, `clientId`, `date`, `exercises` (JSON string), `notes`, `createdAt`
-- Each row represents one workout session
-- `exercises` column contains JSON string of exercise array with sets/reps/weights
-- **Trainers can sort this sheet by `clientId` in Google Sheets** to view workouts organized by client (see `SHEET_SETUP.md` for instructions)
+- Columns: `workoutId`, `clientId`, `date`, `exerciseName`, `setNumber`, `reps`, `weight`, `volume`, `notes`, `createdAt`
+- Each row represents one set of one exercise in one workout session
+- Multiple rows share the same `workoutId` to represent a complete workout session
+- `setNumber`: Sequential number for sets within an exercise (1, 2, 3...)
+- `volume`: Calculated as `reps × weight` for this set (stored for easy querying)
+- **Normalized structure**: Enables easy querying, progression tracking, and metrics calculation
+- **Trainers can sort/filter this sheet by `clientId`, `date`, `exerciseName` in Google Sheets** to view workouts organized by various criteria
 
-*Note: Exact sheet structure will be finalized during implementation. May use structured columns for exercises/sets if JSON proves problematic.*
+**Migration**: Data was migrated from JSON-based structure (one row per workout) to normalized structure (one row per set) in Sprint 03. Migration script has been removed after successful migration.
 
 ## Evolution
 

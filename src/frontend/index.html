@@ -16,7 +16,7 @@
       <!-- Left Panel: Clients -->
       <aside class="clients-panel">
         <h2>Clients</h2>
-        <button id="new-client-btn" class="btn-primary">+ New Client</button>
+        <button id="new-client-btn" class="btn-primary" type="button">+ New Client</button>
         <div class="search-container">
           <input 
             type="text" 
@@ -40,8 +40,7 @@
             <div class="client-header">
               <h2 id="client-name"></h2>
               <div class="client-actions">
-                <button id="edit-client-btn" class="btn-secondary btn-icon" title="Edit Client">✏️ Edit</button>
-                <button id="delete-client-btn" class="btn-danger btn-icon" title="Delete Client">🗑️ Delete</button>
+                <button id="edit-client-btn" class="btn-secondary btn-icon" title="Edit Client">Edit</button>
               </div>
             </div>
             <div class="client-meta">
@@ -52,20 +51,20 @@
           </div>
         </div>
 
+        <!-- Empty State (when no client selected) -->
+        <section id="no-client-selected-section" class="no-client-selected-section" style="display: none;">
+          <div class="empty-state">
+            <p class="empty-state-message">Select a client to add workouts</p>
+          </div>
+        </section>
+
         <!-- Add Workout Entry Form -->
-        <section class="workout-form-section">
+        <section id="workout-form-section" class="workout-form-section" style="display: none;">
           <h2>Add Workout Entry</h2>
           <form id="workout-form" class="workout-form">
             <div class="form-group">
               <label for="workout-date">Date <span class="required">*</span></label>
-              <div class="date-input-group">
-                <input type="date" id="workout-date" name="date" required>
-                <div class="quick-date-buttons">
-                  <button type="button" class="btn-secondary btn-small quick-date-btn" data-date="today">Today</button>
-                  <button type="button" class="btn-secondary btn-small quick-date-btn" data-date="yesterday">Yesterday</button>
-                  <button type="button" class="btn-secondary btn-small quick-date-btn" data-date="last-week">Last Week</button>
-                </div>
-              </div>
+              <input type="date" id="workout-date" name="date" required>
               <span class="error-message" id="workout-date-error"></span>
             </div>
 
@@ -87,28 +86,39 @@
 
             <div class="form-group">
               <label for="workout-weight">Weight (lbs) <span class="required">*</span></label>
-              <input 
-                type="number" 
-                id="workout-weight" 
-                name="weight" 
-                placeholder="0" 
-                min="0" 
-                step="0.5"
-                required
-              >
+              <div class="number-input-group">
+                <button type="button" class="number-btn number-btn-decrease" id="weight-decrease-btn" aria-label="Decrease weight">−</button>
+                <input 
+                  type="number" 
+                  id="workout-weight" 
+                  name="weight" 
+                  placeholder="0" 
+                  min="0" 
+                  step="2.5"
+                  required
+                  class="number-input"
+                >
+                <button type="button" class="number-btn number-btn-increase" id="weight-increase-btn" aria-label="Increase weight">+</button>
+              </div>
               <span class="error-message" id="workout-weight-error"></span>
             </div>
 
             <div class="form-group">
               <label for="workout-reps">Reps <span class="required">*</span></label>
-              <input 
-                type="number" 
-                id="workout-reps" 
-                name="reps" 
-                placeholder="0" 
-                min="1" 
-                required
-              >
+              <div class="number-input-group">
+                <button type="button" class="number-btn number-btn-decrease" id="reps-decrease-btn" aria-label="Decrease reps">−</button>
+                <input 
+                  type="number" 
+                  id="workout-reps" 
+                  name="reps" 
+                  placeholder="0" 
+                  min="1" 
+                  step="1"
+                  required
+                  class="number-input"
+                >
+                <button type="button" class="number-btn number-btn-increase" id="reps-increase-btn" aria-label="Increase reps">+</button>
+              </div>
               <span class="error-message" id="workout-reps-error"></span>
             </div>
 
@@ -123,7 +133,6 @@
             </div>
 
             <div class="workout-form-actions">
-              <button type="button" class="btn-secondary" id="copy-last-workout-btn" title="Copy exercises and sets from the most recent workout">📋 Copy Last Workout</button>
               <button type="submit" class="btn-primary btn-save">Save Entry</button>
             </div>
           </form>
@@ -134,6 +143,11 @@
           <div class="workout-history-header">
             <h2>Recent Sessions</h2>
             <div class="workout-history-controls">
+              <div class="workout-history-filter">
+                <label for="workout-date-search" class="filter-label">Search Date:</label>
+                <input type="date" id="workout-date-search" class="date-search-input" placeholder="Filter by date">
+                <button type="button" id="clear-date-search-btn" class="btn-icon btn-secondary" title="Clear date filter" style="display: none;">✕</button>
+              </div>
               <label for="workout-sort-select" class="sort-label">Sort:</label>
               <select id="workout-sort-select" class="sort-select">
                 <option value="newest">Newest First</option>
@@ -152,6 +166,7 @@
                   <th>Date</th>
                   <th>Exercise</th>
                   <th>Weight x Reps</th>
+                  <th>Volume</th>
                   <th>Notes</th>
                   <th>Actions</th>
                 </tr>
@@ -195,6 +210,7 @@
           </div>
           <div class="form-actions">
             <button type="button" class="btn-secondary" id="cancel-client-btn">Cancel</button>
+            <button type="button" class="btn-danger" id="delete-client-btn" style="display: none;">Delete Client</button>
             <button type="submit" class="btn-primary" id="client-form-submit-btn">Save Client</button>
           </div>
         </form>
@@ -226,6 +242,7 @@
 
           <div class="form-actions">
             <button type="button" class="btn-secondary" id="cancel-workout-btn">Cancel</button>
+            <button type="button" class="btn-danger" id="delete-workout-btn" style="display: none;">Delete Workout</button>
             <button type="submit" class="btn-primary" id="workout-edit-form-submit-btn">Update Workout</button>
           </div>
         </form>

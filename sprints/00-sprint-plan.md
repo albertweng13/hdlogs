@@ -16,6 +16,11 @@ Enhance the MVP with data management capabilities (edit/delete clients and worko
 
 **Test Results**: 73/74 tests passing (98.6%). All Sprint 02 feature tests passing (27/27). 1 pre-existing credentials test failure (unrelated to Sprint 02).
 
+### Sprint 03: UI/UX Improvements and Data Structure for Metrics
+**Status**: NOT_STARTED
+
+Improve UI/UX for better tablet usability and workout entry experience, and restructure Google Sheets data model to enable future metrics and progression tracking. Focus on making workout entry intuitive, fast, and data-friendly for analysis.
+
 ---
 
 ## Sprint Status Values

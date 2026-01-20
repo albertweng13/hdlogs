@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 import { initializeGoogleSheetsAuth, getSpreadsheetId } from '../config/credentials.js';
-import { rowsToClients, clientToRow, rowToClient, rowsToWorkouts, workoutToRow, rowToWorkout } from '../utils/transform.js';
+import { rowsToClients, clientToRow, rowToClient, rowsToWorkouts, workoutToRows, rowToWorkoutSet, workoutSetToRow } from '../utils/transform.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -15,17 +15,10 @@ import { randomUUID } from 'crypto';
  * - Each row represents one client
  * 
  * **Workouts Sheet:**
- * - Columns: workoutId, clientId, date, exercises (JSON string), notes, createdAt
- * - Each row represents one workout session
- * - exercises column contains JSON string of exercise array with structure:
- *   [
- *     {
- *       exerciseName: string,
- *       sets: [
- *         { reps: number, weight: number, notes: string (optional) }
- *       ]
- *     }
- *   ]
+ * - Columns: workoutId, clientId, date, exerciseName, setNumber, reps, weight, volume, notes, createdAt
+ * - Each row represents one set of one exercise in one workout session
+ * - Multiple rows share the same workoutId to represent a complete workout session
+ * - volume = reps × weight (calculated per set)
  */
 
 let sheetsClient = null;
@@ -256,7 +249,11 @@ export async function initializeSheets() {
     'workoutId',
     'clientId',
     'date',
-    'exercises',
+    'exerciseName',
+    'setNumber',
+    'reps',
+    'weight',
+    'volume',
     'notes',
     'createdAt'
   ]);
@@ -397,7 +394,7 @@ export async function createClient(clientData) {
 export async function getWorkoutsByClientId(clientId) {
   // Ensure sheet exists with headers before accessing
   await ensureSheetExists('Workouts');
-  await ensureHeadersExist('Workouts', ['workoutId', 'clientId', 'date', 'exercises', 'notes', 'createdAt']);
+  await ensureHeadersExist('Workouts', ['workoutId', 'clientId', 'date', 'exerciseName', 'setNumber', 'reps', 'weight', 'volume', 'notes', 'createdAt']);
   
   const rows = await getSheetData('Workouts');
   const allWorkouts = rowsToWorkouts(rows);
@@ -415,7 +412,7 @@ export async function getWorkoutsByClientId(clientId) {
 export async function createWorkout(workoutData) {
   // Ensure sheet exists with headers before creating
   await ensureSheetExists('Workouts');
-  await ensureHeadersExist('Workouts', ['workoutId', 'clientId', 'date', 'exercises', 'notes', 'createdAt']);
+  await ensureHeadersExist('Workouts', ['workoutId', 'clientId', 'date', 'exerciseName', 'setNumber', 'reps', 'weight', 'volume', 'notes', 'createdAt']);
   
   const workoutId = `workout-${randomUUID()}`;
   const createdAt = new Date().toISOString();
@@ -429,8 +426,25 @@ export async function createWorkout(workoutData) {
     createdAt,
   };
   
-  const row = workoutToRow(workout);
-  await appendRow('Workouts', row);
+  // Convert workout to multiple rows (one per set)
+  const rows = workoutToRows(workout);
+  
+  // Append all rows for this workout
+  if (rows.length > 0) {
+    // Use batch append for better performance
+    const client = await initializeSheetsClient();
+    const spreadsheetId = getSpreadsheetId();
+    
+    await client.spreadsheets.values.append({
+      spreadsheetId,
+      range: 'Workouts!A:J',
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      resource: {
+        values: rows,
+      },
+    });
+  }
   
   return workout;
 }
@@ -446,27 +460,29 @@ export async function createWorkout(workoutData) {
 export async function updateWorkout(workoutId, workoutData) {
   // Ensure sheet exists with headers before updating
   await ensureSheetExists('Workouts');
-  await ensureHeadersExist('Workouts', ['workoutId', 'clientId', 'date', 'exercises', 'notes', 'createdAt']);
+  await ensureHeadersExist('Workouts', ['workoutId', 'clientId', 'date', 'exerciseName', 'setNumber', 'reps', 'weight', 'volume', 'notes', 'createdAt']);
   
-  // Get all rows to find the workout
+  // Get all rows to find the workout sets
   const rows = await getSheetData('Workouts');
   
-  // Find the row index (accounting for header row at index 0)
-  // Filter out empty rows and rows without workoutId
-  const rowIndex = rows.findIndex((row, index) => {
+  // Find all row indices that match the workoutId (need to delete in reverse order to maintain indices)
+  const workoutRowIndices = [];
+  rows.forEach((row, index) => {
     // Skip header row (index 0)
-    if (index === 0) return false;
+    if (index === 0) return;
     // Skip empty rows or rows without a workoutId
-    if (!row || row.length === 0 || !row[0]) return false;
-    return row[0] === workoutId;
+    if (!row || row.length === 0 || !row[0]) return;
+    if (row[0] === workoutId) {
+      workoutRowIndices.push(index);
+    }
   });
   
-  if (rowIndex === -1) {
+  if (workoutRowIndices.length === 0) {
     // Provide helpful error message
     const availableWorkoutIds = rows
       .slice(1) // Skip header
       .map(row => row && row[0] ? row[0] : null)
-      .filter(id => id !== null);
+      .filter((id, index, self) => id !== null && self.indexOf(id) === index); // Unique IDs
     throw new Error(
       `Workout with ID "${workoutId}" not found. ` +
       `Available workout IDs: ${availableWorkoutIds.length > 0 ? availableWorkoutIds.slice(0, 10).join(', ') : 'none'}`
@@ -474,50 +490,90 @@ export async function updateWorkout(workoutId, workoutData) {
   }
   
   // Get existing workout to preserve workoutId and createdAt
-  const existingWorkout = rowToWorkout(rows[rowIndex]);
+  const firstSet = rowToWorkoutSet(rows[workoutRowIndices[0]]);
+  // Reconstruct existing workout from all sets
+  const existingWorkoutRows = workoutRowIndices.map(index => rows[index]);
+  const existingWorkouts = rowsToWorkouts([['header'], ...existingWorkoutRows]); // Add dummy header for rowsToWorkouts
+  const existingWorkout = existingWorkouts[0] || { exercises: [] };
   
   // Merge updated data with existing data (preserve workoutId and createdAt)
   const updatedWorkout = {
-    workoutId: existingWorkout.workoutId, // Preserve workoutId
-    clientId: workoutData.clientId !== undefined ? workoutData.clientId : existingWorkout.clientId,
-    date: workoutData.date !== undefined ? workoutData.date : existingWorkout.date,
+    workoutId: workoutId, // Preserve workoutId
+    clientId: workoutData.clientId !== undefined ? workoutData.clientId : firstSet.clientId,
+    date: workoutData.date !== undefined ? workoutData.date : firstSet.date,
     exercises: workoutData.exercises !== undefined ? workoutData.exercises : existingWorkout.exercises,
-    notes: workoutData.notes !== undefined ? workoutData.notes : existingWorkout.notes,
-    createdAt: existingWorkout.createdAt, // Preserve createdAt
+    notes: workoutData.notes !== undefined ? workoutData.notes : firstSet.notes,
+    createdAt: firstSet.createdAt, // Preserve createdAt
   };
   
-  // Convert to row format
-  const updatedRow = workoutToRow(updatedWorkout);
+  // Convert to multiple rows (one per set)
+  const updatedRows = workoutToRows(updatedWorkout);
   
-  // Google Sheets row numbers are 1-indexed, and we have a header row at index 0 in the array
-  // Array: rows[0] = header, rows[1] = first data row, rows[2] = second data row, ...
-  // Sheets: row 1 = header, row 2 = first data row, row 3 = second data row, ...
-  // So if rowIndex = 1 (first data row in array), we need row 2 in Sheets (rowIndex + 1)
-  const sheetRowNumber = rowIndex + 1;
-  
-  // Calculate column range (A to F for 6 columns: workoutId, clientId, date, exercises, notes, createdAt)
-  // Ensure we have all required columns
-  if (updatedRow.length !== 6) {
-    throw new Error(
-      `Invalid row format: expected 6 columns, got ${updatedRow.length}. ` +
-      `Row data: ${JSON.stringify(updatedRow)}`
-    );
+  if (updatedRows.length === 0) {
+    throw new Error(`Cannot update workout ${workoutId}: No exercises/sets provided`);
   }
-  const lastColIndex = updatedRow.length - 1;
-  const lastCol = String.fromCharCode(65 + lastColIndex); // A=65 (index 0), F=70 (index 5)
-  const range = `Workouts!A${sheetRowNumber}:${lastCol}${sheetRowNumber}`;
   
-  // Update the row
+  // Delete old rows and insert new ones
   const client = await initializeSheetsClient();
   const spreadsheetId = getSpreadsheetId();
   
   try {
+    // Get the sheet ID for the Workouts sheet
+    const spreadsheet = await client.spreadsheets.get({ spreadsheetId });
+    const workoutsSheet = spreadsheet.data.sheets.find(sheet => sheet.properties.title === 'Workouts');
+    
+    if (!workoutsSheet) {
+      throw new Error('Workouts sheet not found');
+    }
+    
+    const sheetId = workoutsSheet.properties.sheetId;
+    
+    // Delete rows in reverse order to maintain correct indices
+    workoutRowIndices.reverse();
+    
+    const deleteRequests = workoutRowIndices.map(rowIndex => ({
+      deleteDimension: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'ROWS',
+          startIndex: rowIndex,
+          endIndex: rowIndex + 1,
+        },
+      },
+    }));
+    
+    // Insert new rows at the position of the first deleted row
+    const insertRowIndex = Math.min(...workoutRowIndices);
+    
+    const insertRequest = {
+      insertDimension: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'ROWS',
+          startIndex: insertRowIndex,
+          endIndex: insertRowIndex + updatedRows.length,
+        },
+      },
+    };
+    
+    // Execute delete and insert in batch
+    await client.spreadsheets.batchUpdate({
+      spreadsheetId,
+      resource: {
+        requests: [...deleteRequests, insertRequest],
+      },
+    });
+    
+    // Now update the inserted rows with new data
+    const lastCol = String.fromCharCode(65 + 9); // J (10 columns: A-J)
+    const range = `Workouts!A${insertRowIndex + 1}:${lastCol}${insertRowIndex + updatedRows.length}`;
+    
     await client.spreadsheets.values.update({
       spreadsheetId,
       range: range,
       valueInputOption: 'USER_ENTERED',
       resource: {
-        values: [updatedRow],
+        values: updatedRows,
       },
     });
     
@@ -526,11 +582,9 @@ export async function updateWorkout(workoutId, workoutData) {
     // Log detailed error for debugging
     console.error(`Failed to update workout ${workoutId}:`, {
       error: error.message,
-      range,
-      sheetRowNumber,
-      rowIndex,
+      workoutRowIndices,
       spreadsheetId,
-      updatedRowLength: updatedRow.length,
+      updatedRowsLength: updatedRows.length,
     });
     throw new Error(`Failed to update workout ${workoutId}: ${error.message}`);
   }
@@ -546,37 +600,39 @@ export async function updateWorkout(workoutId, workoutData) {
 export async function deleteWorkout(workoutId) {
   // Ensure sheet exists with headers before deleting
   await ensureSheetExists('Workouts');
-  await ensureHeadersExist('Workouts', ['workoutId', 'clientId', 'date', 'exercises', 'notes', 'createdAt']);
+  await ensureHeadersExist('Workouts', ['workoutId', 'clientId', 'date', 'exerciseName', 'setNumber', 'reps', 'weight', 'volume', 'notes', 'createdAt']);
   
-  // Get all rows to find the workout
+  // Get all rows to find all workout sets
   const rows = await getSheetData('Workouts');
   
-  // Find the row index (accounting for header row at index 0)
-  const rowIndex = rows.findIndex((row, index) => {
+  // Find all row indices that match the workoutId (need to delete in reverse order to maintain indices)
+  const workoutRowIndices = [];
+  rows.forEach((row, index) => {
     // Skip header row (index 0)
-    if (index === 0) return false;
+    if (index === 0) return;
     // Skip empty rows or rows without a workoutId
-    if (!row || row.length === 0 || !row[0]) return false;
-    return row[0] === workoutId;
+    if (!row || row.length === 0 || !row[0]) return;
+    if (row[0] === workoutId) {
+      workoutRowIndices.push(index);
+    }
   });
   
-  if (rowIndex === -1) {
+  if (workoutRowIndices.length === 0) {
     // Provide helpful error message
     const availableWorkoutIds = rows
       .slice(1) // Skip header
       .map(row => row && row[0] ? row[0] : null)
-      .filter(id => id !== null);
+      .filter((id, index, self) => id !== null && self.indexOf(id) === index); // Unique IDs
     throw new Error(
       `Workout with ID "${workoutId}" not found. ` +
       `Available workout IDs: ${availableWorkoutIds.length > 0 ? availableWorkoutIds.slice(0, 10).join(', ') : 'none'}`
     );
   }
   
-  // Google Sheets row numbers are 1-indexed, and we have a header row
-  // So rowIndex (0-based, excluding header) becomes rowIndex + 1 in Sheets (row 1 = headers, row 2+ = data)
-  const sheetRowNumber = rowIndex + 1; // rowIndex already accounts for header, so +1 for 1-indexing
+  // Delete rows in reverse order to maintain correct indices
+  workoutRowIndices.reverse();
   
-  // Delete the row using batchUpdate with deleteDimension request
+  // Delete the rows using batchUpdate with deleteDimension request
   const client = await initializeSheetsClient();
   const spreadsheetId = getSpreadsheetId();
   
@@ -591,22 +647,23 @@ export async function deleteWorkout(workoutId) {
     
     const sheetId = workoutsSheet.properties.sheetId;
     
-    // Delete the row
+    // Create delete requests for all workout rows
+    const deleteRequests = workoutRowIndices.map(rowIndex => ({
+      deleteDimension: {
+        range: {
+          sheetId: sheetId,
+          dimension: 'ROWS',
+          startIndex: rowIndex,
+          endIndex: rowIndex + 1,
+        },
+      },
+    }));
+    
+    // Execute all deletions in a single batch update
     await client.spreadsheets.batchUpdate({
       spreadsheetId,
       resource: {
-        requests: [
-          {
-            deleteDimension: {
-              range: {
-                sheetId: sheetId,
-                dimension: 'ROWS',
-                startIndex: rowIndex, // 0-based index (including header row offset)
-                endIndex: rowIndex + 1, // Delete one row
-              },
-            },
-          },
-        ],
+        requests: deleteRequests,
       },
     });
   } catch (error) {
@@ -807,7 +864,7 @@ export async function deleteClient(clientId, deleteWorkouts = false) {
 async function deleteClientWorkouts(clientId) {
   // Ensure sheet exists with headers
   await ensureSheetExists('Workouts');
-  await ensureHeadersExist('Workouts', ['workoutId', 'clientId', 'date', 'exercises', 'notes', 'createdAt']);
+  await ensureHeadersExist('Workouts', ['workoutId', 'clientId', 'date', 'exerciseName', 'setNumber', 'reps', 'weight', 'volume', 'notes', 'createdAt']);
   
   // Get all rows to find workouts for this client
   const rows = await getSheetData('Workouts');

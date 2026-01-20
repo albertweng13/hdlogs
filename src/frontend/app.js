@@ -13,6 +13,7 @@ let state = {
   filteredClients: [], // Filtered client list based on search
   workoutSortOrder: 'newest', // Track workout sort order: 'newest' or 'oldest'
   groupWorkoutsByDate: true, // Track whether to group workouts by date
+  workoutDateFilter: '', // Track date filter for workout history
 };
 
 // DOM Elements
@@ -20,7 +21,6 @@ const elements = {
   clientList: document.getElementById('client-list'),
   newClientBtn: document.getElementById('new-client-btn'),
   editClientBtn: document.getElementById('edit-client-btn'),
-  deleteClientBtn: document.getElementById('delete-client-btn'),
   clientModal: document.getElementById('client-modal'),
   clientModalTitle: document.getElementById('client-modal-title'),
   clientForm: document.getElementById('client-form'),
@@ -49,13 +49,26 @@ const elements = {
   workoutEditForm: document.getElementById('workout-edit-form'),
   workoutEditFormSubmitBtn: document.getElementById('workout-edit-form-submit-btn'),
   cancelWorkoutBtn: document.getElementById('cancel-workout-btn'),
-  copyLastWorkoutBtn: document.getElementById('copy-last-workout-btn'),
   closeWorkoutModal: document.querySelector('.close-workout-modal'),
   editWorkoutExercisesContainer: document.getElementById('edit-workout-exercises-container'),
 };
 
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
+  // Re-query elements in case they weren't found initially (for module scripts)
+  elements.newClientBtn = document.getElementById('new-client-btn');
+  elements.clientModal = document.getElementById('client-modal');
+  elements.clientModalTitle = document.getElementById('client-modal-title');
+  elements.clientForm = document.getElementById('client-form');
+  elements.clientFormSubmitBtn = document.getElementById('client-form-submit-btn');
+  elements.closeModal = document.querySelector('.close-modal');
+  elements.cancelClientBtn = document.getElementById('cancel-client-btn');
+  
+  // Clear any visible error messages on page load
+  if (elements.errorMessage) {
+    elements.errorMessage.style.display = 'none';
+  }
+  
   setupEventListeners();
   loadClients();
   setupExerciseSuggestions();
@@ -65,9 +78,13 @@ document.addEventListener('DOMContentLoaded', () => {
 // Event Listeners Setup
 function setupEventListeners() {
   // New Client Button
-  elements.newClientBtn.addEventListener('click', () => {
-    openClientModalForNew();
-  });
+  if (elements.newClientBtn) {
+    elements.newClientBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openClientModalForNew();
+    });
+  }
 
   // Edit Client Button
   elements.editClientBtn.addEventListener('click', () => {
@@ -76,12 +93,6 @@ function setupEventListeners() {
     }
   });
 
-  // Delete Client Button
-  elements.deleteClientBtn.addEventListener('click', () => {
-    if (state.selectedClient) {
-      handleDeleteClient(state.selectedClient);
-    }
-  });
 
   // Close Modal
   elements.closeModal.addEventListener('click', closeClientModal);
@@ -136,6 +147,29 @@ function setupEventListeners() {
       renderWorkoutHistory();
     });
   }
+  
+  // Date Search Input
+  const dateSearchInput = document.getElementById('workout-date-search');
+  const clearDateSearchBtn = document.getElementById('clear-date-search-btn');
+  
+  if (dateSearchInput) {
+    dateSearchInput.addEventListener('change', (e) => {
+      state.workoutDateFilter = e.target.value;
+      if (clearDateSearchBtn) {
+        clearDateSearchBtn.style.display = state.workoutDateFilter ? 'inline-block' : 'none';
+      }
+      renderWorkoutHistory();
+    });
+  }
+  
+  if (clearDateSearchBtn) {
+    clearDateSearchBtn.addEventListener('click', () => {
+      state.workoutDateFilter = '';
+      if (dateSearchInput) dateSearchInput.value = '';
+      clearDateSearchBtn.style.display = 'none';
+      renderWorkoutHistory();
+    });
+  }
 
   // Workout Modal - Close
   if (elements.closeWorkoutModal) {
@@ -157,18 +191,84 @@ function setupEventListeners() {
     elements.workoutEditForm.addEventListener('submit', handleWorkoutEditFormSubmit);
   }
 
-  // Task 58-60: Quick Date Selection buttons
-  document.querySelectorAll('.quick-date-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      const dateType = e.target.getAttribute('data-date');
-      handleQuickDateSelection(dateType);
+  // Number input +/- buttons for weight
+  const weightDecreaseBtn = document.getElementById('weight-decrease-btn');
+  const weightIncreaseBtn = document.getElementById('weight-increase-btn');
+  const weightInput = document.getElementById('workout-weight');
+  
+  if (weightDecreaseBtn && weightIncreaseBtn && weightInput) {
+    weightDecreaseBtn.addEventListener('click', () => {
+      const currentValue = parseFloat(weightInput.value) || 0;
+      const newValue = Math.max(0, currentValue - 2.5);
+      weightInput.value = newValue.toFixed(1);
+      weightInput.dispatchEvent(new Event('input', { bubbles: true }));
     });
-  });
-
-  // Task 62-66: Copy Last Workout button
-  if (elements.copyLastWorkoutBtn) {
-    elements.copyLastWorkoutBtn.addEventListener('click', handleCopyLastWorkout);
+    
+    weightIncreaseBtn.addEventListener('click', () => {
+      const currentValue = parseFloat(weightInput.value) || 0;
+      const newValue = currentValue + 2.5;
+      weightInput.value = newValue.toFixed(1);
+      weightInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+  
+  // Number input +/- buttons for reps
+  const repsDecreaseBtn = document.getElementById('reps-decrease-btn');
+  const repsIncreaseBtn = document.getElementById('reps-increase-btn');
+  const repsInput = document.getElementById('workout-reps');
+  
+  if (repsDecreaseBtn && repsIncreaseBtn && repsInput) {
+    repsDecreaseBtn.addEventListener('click', () => {
+      const currentValue = parseInt(repsInput.value) || 0;
+      const newValue = Math.max(1, currentValue - 1);
+      repsInput.value = newValue;
+      repsInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    
+    repsIncreaseBtn.addEventListener('click', () => {
+      const currentValue = parseInt(repsInput.value) || 0;
+      const newValue = currentValue + 1;
+      repsInput.value = newValue;
+      repsInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+  
+  // Smart defaults when exercise name changes
+  const exerciseInput = document.getElementById('workout-exercise');
+  if (exerciseInput) {
+    exerciseInput.addEventListener('blur', async () => {
+      await updateWorkoutDefaults();
+    });
+  }
+  
+  // Delete client button in edit modal
+  const deleteClientBtn = document.getElementById('delete-client-btn');
+  if (deleteClientBtn) {
+    deleteClientBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const clientId = deleteClientBtn.getAttribute('data-client-id');
+      if (clientId) {
+        const client = state.clients.find(c => c.clientId === clientId);
+        if (client) {
+          handleDeleteClient(client);
+        }
+      }
+    });
+  }
+  
+  // Delete workout button in edit modal
+  const deleteWorkoutBtn = document.getElementById('delete-workout-btn');
+  if (deleteWorkoutBtn) {
+    deleteWorkoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const workoutId = deleteWorkoutBtn.getAttribute('data-workout-id');
+      if (workoutId) {
+        const workout = state.workouts.find(w => w.workoutId === workoutId);
+        if (workout) {
+          handleDeleteWorkout(workout);
+        }
+      }
+    });
   }
 }
 
@@ -316,8 +416,36 @@ function renderClientList() {
     if (state.selectedClient?.clientId === client.clientId) {
       clientItem.classList.add('selected');
     }
-    clientItem.innerHTML = `<div class="client-item-name">${escapeHtml(client.name)}</div>`;
-    clientItem.addEventListener('click', () => selectClient(client));
+    
+    // Create client item content with delete button
+    const clientContent = document.createElement('div');
+    clientContent.className = 'client-item-content';
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'client-delete-btn';
+    deleteBtn.innerHTML = '×';
+    deleteBtn.title = 'Delete client';
+    deleteBtn.setAttribute('data-client-id', client.clientId);
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent selecting the client when clicking delete
+      handleDeleteClient(client);
+    });
+    
+    const clientName = document.createElement('div');
+    clientName.className = 'client-item-name';
+    clientName.textContent = client.name;
+    
+    clientContent.appendChild(deleteBtn);
+    clientContent.appendChild(clientName);
+    clientItem.appendChild(clientContent);
+    
+    clientItem.addEventListener('click', (e) => {
+      // Don't select if clicking the delete button
+      if (!e.target.closest('.client-delete-btn')) {
+        selectClient(client);
+      }
+    });
+    
     elements.clientList.appendChild(clientItem);
   });
 }
@@ -330,23 +458,49 @@ function selectClient(client) {
 }
 
 function renderClientDetails() {
+  const workoutFormSection = document.getElementById('workout-form-section');
+  const noClientSection = document.getElementById('no-client-selected-section');
+  
   if (!state.selectedClient) {
     elements.clientDetailsSection.style.display = 'none';
+    if (workoutFormSection) workoutFormSection.style.display = 'none';
+    if (noClientSection) noClientSection.style.display = 'block';
     return;
   }
 
   elements.clientDetailsSection.style.display = 'block';
+  if (workoutFormSection) workoutFormSection.style.display = 'block';
+  if (noClientSection) noClientSection.style.display = 'none';
+  
   elements.clientName.textContent = state.selectedClient.name || 'No name';
   elements.clientEmail.textContent = state.selectedClient.email || 'No email';
   elements.clientPhone.textContent = state.selectedClient.phone || 'No phone';
   elements.clientNotes.textContent = state.selectedClient.notes || 'No notes';
+  
+  // Set default date to today when client is selected
+  setDefaultDate();
+  
+  // Update workout defaults when client is selected
+  updateWorkoutDefaults();
 }
 
 function openClientModalForNew() {
+  if (!elements.clientModal) {
+    return;
+  }
+  
   state.editingClientId = null;
   elements.clientModalTitle.textContent = 'Add New Client';
   elements.clientFormSubmitBtn.textContent = 'Save Client';
   elements.clientForm.reset();
+  
+  // Hide delete button for new client
+  const deleteBtn = document.getElementById('delete-client-btn');
+  if (deleteBtn) {
+    deleteBtn.style.display = 'none';
+    deleteBtn.removeAttribute('data-client-id');
+  }
+  
   // Clear validation errors
   displayClientFormErrors({});
   elements.clientModal.style.display = 'flex';
@@ -362,6 +516,13 @@ function openClientModalForEdit(client) {
   document.getElementById('client-email-input').value = client.email || '';
   document.getElementById('client-phone-input').value = client.phone || '';
   document.getElementById('client-notes-input').value = client.notes || '';
+  
+  // Show delete button in edit modal
+  const deleteBtn = document.getElementById('delete-client-btn');
+  if (deleteBtn) {
+    deleteBtn.style.display = 'inline-block';
+    deleteBtn.setAttribute('data-client-id', client.clientId);
+  }
   
   // Clear validation errors
   displayClientFormErrors({});
@@ -597,11 +758,18 @@ function closeClientModal() {
   elements.clientModal.style.display = 'none';
   elements.clientForm.reset();
   state.editingClientId = null;
+  
+  // Hide delete button
+  const deleteBtn = document.getElementById('delete-client-btn');
+  if (deleteBtn) {
+    deleteBtn.style.display = 'none';
+    deleteBtn.removeAttribute('data-client-id');
+  }
 }
 
 // Delete Client Functions
 async function handleDeleteClient(client) {
-  // Task 16: Add confirmation dialog
+  // Confirmation dialog
   const clientName = client.name || 'this client';
   const confirmed = confirm(
     `Are you sure you want to delete ${clientName}? This action cannot be undone.`
@@ -610,6 +778,9 @@ async function handleDeleteClient(client) {
   if (!confirmed) {
     return; // User cancelled deletion
   }
+  
+  // Close modal if open
+  closeClientModal();
 
   showLoading();
   try {
@@ -670,8 +841,20 @@ function renderWorkoutHistory() {
 
   elements.noWorkoutsMessage.style.display = 'none';
 
+  // Filter workouts by date if date filter is set
+  let filteredWorkouts = state.workouts;
+  if (state.workoutDateFilter) {
+    filteredWorkouts = state.workouts.filter(workout => workout.date === state.workoutDateFilter);
+  }
+
+  if (filteredWorkouts.length === 0 && state.workoutDateFilter) {
+    elements.noWorkoutsMessage.textContent = `No workouts found for ${state.workoutDateFilter}`;
+    elements.noWorkoutsMessage.style.display = 'block';
+    return;
+  }
+
   // Task 42-44: Sort workouts by date (based on sort order)
-  const sortedWorkouts = [...state.workouts].sort((a, b) => {
+  const sortedWorkouts = [...filteredWorkouts].sort((a, b) => {
     const dateA = new Date(a.date);
     const dateB = new Date(b.date);
     if (state.workoutSortOrder === 'oldest') {
@@ -716,7 +899,7 @@ function renderGroupedWorkoutHistory(sortedWorkouts) {
     const headerRow = document.createElement('tr');
     headerRow.className = 'date-group-header';
     headerRow.innerHTML = `
-      <td colspan="5" class="date-header-cell">
+      <td colspan="6" class="date-header-cell">
         <strong>${formatDate(date)}</strong>
       </td>
     `;
@@ -751,14 +934,14 @@ function renderWorkoutRows(workout) {
       const row = document.createElement('tr');
       row.setAttribute('data-workout-id', workout.workoutId);
       const weightReps = `${set.weight}lbs x ${set.reps}reps`;
+      const volume = (set.weight || 0) * (set.reps || 0);
       
-      // Actions column - show edit/delete buttons only on first row of workout
+      // Actions column - show edit button only on first row of workout
       let actionsCell = '<td></td>';
       if (isFirstRowOfWorkout && exerciseIndex === 0 && setIndex === 0) {
         actionsCell = `
           <td class="workout-actions">
-            <button class="btn-icon btn-secondary edit-workout-btn" data-workout-id="${workout.workoutId}" title="Edit Workout">✏️ Edit</button>
-            <button class="btn-icon btn-danger delete-workout-btn" data-workout-id="${workout.workoutId}" title="Delete Workout">🗑️ Delete</button>
+            <button class="btn-icon btn-secondary edit-workout-btn" data-workout-id="${workout.workoutId}" title="Edit Workout">Edit</button>
           </td>
         `;
         isFirstRowOfWorkout = false;
@@ -768,6 +951,7 @@ function renderWorkoutRows(workout) {
         <td>${formatDate(workout.date)}</td>
         <td>${escapeHtml(exercise.exerciseName)}</td>
         <td>${escapeHtml(weightReps)}</td>
+        <td>${volume.toLocaleString()}</td>
         <td>${escapeHtml(set.notes || workout.notes || '')}</td>
         ${actionsCell}
       `;
@@ -779,7 +963,7 @@ function renderWorkoutRows(workout) {
 // Helper function to attach event listeners to workout action buttons
 function attachWorkoutRowEventListeners() {
   // Remove old event listeners by removing the attribute and re-adding
-  document.querySelectorAll('.edit-workout-btn, .delete-workout-btn').forEach(btn => {
+  document.querySelectorAll('.edit-workout-btn').forEach(btn => {
     btn.removeAttribute('data-listener-attached');
     // Clone node to remove all event listeners
     const newBtn = btn.cloneNode(true);
@@ -794,18 +978,6 @@ function attachWorkoutRowEventListeners() {
       const workout = state.workouts.find(w => w.workoutId === workoutId);
       if (workout) {
         openWorkoutModalForEdit(workout);
-      }
-    });
-  });
-  
-  // Add event listeners for delete buttons
-  document.querySelectorAll('.delete-workout-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const workoutId = e.currentTarget.getAttribute('data-workout-id') || e.target.closest('.delete-workout-btn')?.getAttribute('data-workout-id');
-      const workout = state.workouts.find(w => w.workoutId === workoutId);
-      if (workout) {
-        handleDeleteWorkout(workout);
       }
     });
   });
@@ -828,7 +1000,7 @@ async function handleAddWorkout(e) {
     notes: document.getElementById('workout-notes').value.trim(),
   };
   
-  // Task 48: Validate form data
+  // Validate form data
   const errors = validateWorkoutForm(formData);
   if (Object.keys(errors).length > 0) {
     displayWorkoutFormErrors(errors);
@@ -844,44 +1016,47 @@ async function handleAddWorkout(e) {
 
   showLoading();
 
-  // Find existing workout for this date, or create new structure
-  const existingWorkout = state.workouts.find(w => w.date === formData.date);
-  
-  let exercises = [];
-  if (existingWorkout) {
-    exercises = JSON.parse(JSON.stringify(existingWorkout.exercises)); // Deep copy
-  }
-
-  // Check if exercise already exists in this workout
-  const exerciseIndex = exercises.findIndex(
-    ex => ex.exerciseName.toLowerCase() === formData.exercise.toLowerCase()
-  );
-
-  const newSet = {
-    reps: formData.reps,
-    weight: formData.weight,
-    notes: formData.notes || undefined,
-  };
-
-  if (exerciseIndex >= 0) {
-    // Add set to existing exercise
-    exercises[exerciseIndex].sets.push(newSet);
-  } else {
-    // Create new exercise
-    exercises.push({
-      exerciseName: formData.exercise,
-      sets: [newSet],
-    });
-  }
-
-  const workoutData = {
-    clientId: formData.clientId,
-    date: formData.date,
-    exercises: exercises,
-    notes: formData.notes,
-  };
-
   try {
+    // Normalize exercise name for storage
+    const { canonicalizeExerciseName, normalizeExerciseName } = await import('/utils/exerciseNormalize.js');
+    const canonicalExerciseName = canonicalizeExerciseName(formData.exercise);
+
+    // Find existing workout for this date, or create new structure
+    const existingWorkout = state.workouts.find(w => w.date === formData.date);
+    
+    let exercises = [];
+    if (existingWorkout) {
+      exercises = JSON.parse(JSON.stringify(existingWorkout.exercises)); // Deep copy
+    }
+
+    // Check if exercise already exists in this workout (using normalized comparison)
+    const exerciseIndex = exercises.findIndex(
+      ex => normalizeExerciseName(ex.exerciseName) === normalizeExerciseName(formData.exercise)
+    );
+
+    const newSet = {
+      reps: formData.reps,
+      weight: formData.weight,
+      notes: formData.notes || undefined,
+    };
+
+    if (exerciseIndex >= 0) {
+      // Add set to existing exercise
+      exercises[exerciseIndex].sets.push(newSet);
+    } else {
+      // Create new exercise with canonical name
+      exercises.push({
+        exerciseName: canonicalExerciseName,
+        sets: [newSet],
+      });
+    }
+
+    const workoutData = {
+      clientId: formData.clientId,
+      date: formData.date,
+      exercises: exercises,
+      notes: formData.notes,
+    };
     const newWorkout = await apiCall('/workouts', {
       method: 'POST',
       body: JSON.stringify(workoutData),
@@ -966,124 +1141,150 @@ function handleExerciseInput() {
   }
 }
 
-function renderExerciseSuggestions(filter = '') {
+async function renderExerciseSuggestions(filter = '') {
   elements.exerciseSuggestions.innerHTML = '';
 
   const filtered = state.exerciseSuggestions.filter(ex => {
     return ex.toLowerCase().includes(filter.toLowerCase());
   });
 
-  filtered.forEach(exercise => {
+  // Get last weight/reps for each exercise if client is selected
+  const exerciseData = [];
+  for (const exercise of filtered) {
+    let displayText = exercise;
+    if (state.selectedClient && state.workouts && state.workouts.length > 0) {
+      try {
+        const { normalizeExerciseName } = await import('/utils/exerciseNormalize.js');
+        const normalizedExerciseName = normalizeExerciseName(exercise);
+        
+        // Find the most recent workout set for this exercise
+        let lastSet = null;
+        const sortedWorkouts = [...state.workouts].sort((a, b) => {
+          const dateA = new Date(a.date);
+          const dateB = new Date(b.date);
+          return dateB - dateA; // Descending order
+        });
+        
+        for (const workout of sortedWorkouts) {
+          if (!workout.exercises || workout.exercises.length === 0) continue;
+          
+          for (const ex of workout.exercises) {
+            const normalizedCurrentName = normalizeExerciseName(ex.exerciseName);
+            if (normalizedCurrentName === normalizedExerciseName && ex.sets && ex.sets.length > 0) {
+              lastSet = ex.sets[ex.sets.length - 1];
+              break;
+            }
+          }
+          if (lastSet) break;
+        }
+        
+        if (lastSet && (lastSet.weight > 0 || lastSet.reps > 0)) {
+          displayText = `${exercise} (${lastSet.weight}lbs × ${lastSet.reps})`;
+        }
+      } catch (error) {
+        // Silently fail - defaults are nice-to-have
+      }
+    }
+    exerciseData.push({ name: exercise, display: displayText });
+  }
+
+  exerciseData.forEach(({ name, display }) => {
     const suggestion = document.createElement('div');
     suggestion.className = 'exercise-suggestion';
-    suggestion.textContent = exercise;
-    suggestion.addEventListener('click', () => {
-      elements.workoutExercise.value = exercise;
+    suggestion.textContent = display;
+    suggestion.addEventListener('click', async () => {
+      elements.workoutExercise.value = name;
       elements.exerciseSuggestions.innerHTML = '';
+      // Update defaults when exercise is selected
+      await updateWorkoutDefaults();
     });
     elements.exerciseSuggestions.appendChild(suggestion);
   });
 }
 
 // Utility Functions
+// Date input: Set default to today and allow easy override
 function setDefaultDate() {
-  const today = new Date().toISOString().split('T')[0];
-  document.getElementById('workout-date').value = today;
-}
-
-// Task 59: Handle quick date selection
-function handleQuickDateSelection(dateType) {
   const dateInput = document.getElementById('workout-date');
-  const today = new Date();
-  let selectedDate;
-
-  switch (dateType) {
-    case 'today':
-      selectedDate = today;
-      break;
-    case 'yesterday':
-      selectedDate = new Date(today);
-      selectedDate.setDate(today.getDate() - 1);
-      break;
-    case 'last-week':
-      selectedDate = new Date(today);
-      selectedDate.setDate(today.getDate() - 7);
-      break;
-    default:
-      selectedDate = today;
+  if (dateInput) {
+    const today = new Date().toISOString().split('T')[0];
+    // Only set if empty or if user hasn't manually changed it
+    if (!dateInput.value) {
+      dateInput.value = today;
+    }
   }
-
-  // Format as YYYY-MM-DD for date input
-  const year = selectedDate.getFullYear();
-  const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-  const day = String(selectedDate.getDate()).padStart(2, '0');
-  const formattedDate = `${year}-${month}-${day}`;
-
-  dateInput.value = formattedDate;
-  
-  // Clear any date validation errors
-  document.getElementById('workout-date-error').textContent = '';
-  dateInput.classList.remove('error');
 }
 
-// Task 62-67: Copy Last Workout Functions
-async function handleCopyLastWorkout() {
+// Update workout form defaults based on previous sessions
+async function updateWorkoutDefaults() {
+  // Only update if a client is selected
   if (!state.selectedClient) {
-    showError('Please select a client first');
     return;
   }
-
-  // Task 63: Get the most recent workout for selected client
-  const mostRecentWorkout = getMostRecentWorkout(state.selectedClient.clientId);
   
-  if (!mostRecentWorkout || !mostRecentWorkout.exercises || mostRecentWorkout.exercises.length === 0) {
-    showError('No previous workouts found for this client');
+  const exerciseInput = document.getElementById('workout-exercise');
+  const weightInput = document.getElementById('workout-weight');
+  const repsInput = document.getElementById('workout-reps');
+  
+  if (!exerciseInput || !weightInput || !repsInput) {
     return;
   }
-
-  // Task 64: Populate workout form with data from previous workout
-  // For now, we'll populate with the first exercise's first set (simplified for MVP)
-  // The form currently supports one exercise/set at a time
-  const firstExercise = mostRecentWorkout.exercises[0];
-  const firstSet = firstExercise.sets && firstExercise.sets.length > 0 ? firstExercise.sets[0] : null;
-
-  if (!firstSet) {
-    showError('Previous workout has no sets to copy');
+  
+  const exerciseName = exerciseInput.value.trim();
+  if (!exerciseName) {
     return;
   }
-
-  // Populate form fields
-  // Task 65: Update date to today when copying workout
-  setDefaultDate(); // Set to today
   
-  document.getElementById('workout-exercise').value = firstExercise.exerciseName || '';
-  document.getElementById('workout-weight').value = firstSet.weight || 0;
-  document.getElementById('workout-reps').value = firstSet.reps || 0;
-  document.getElementById('workout-notes').value = firstSet.notes || mostRecentWorkout.notes || '';
-
-  // Clear any validation errors
-  displayWorkoutFormErrors({});
-  
-  // Show success message
-  showSuccess('Previous workout data copied. Date set to today. You can modify as needed.');
+  try {
+    // Use workout normalization utility for comparison
+    const { normalizeExerciseName } = await import('/utils/exerciseNormalize.js');
+    const normalizedExerciseName = normalizeExerciseName(exerciseName);
+    
+    // Find the most recent workout set for this exercise from state.workouts
+    let lastSet = null;
+    
+    if (state.workouts && state.workouts.length > 0) {
+      // Sort workouts by date (newest first)
+      const sortedWorkouts = [...state.workouts].sort((a, b) => {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        return dateB - dateA; // Descending order
+      });
+      
+      // Find most recent set for this exercise
+      for (const workout of sortedWorkouts) {
+        if (!workout.exercises || workout.exercises.length === 0) {
+          continue;
+        }
+        
+        for (const exercise of workout.exercises) {
+          const normalizedCurrentName = normalizeExerciseName(exercise.exerciseName);
+          
+          if (normalizedCurrentName === normalizedExerciseName && exercise.sets && exercise.sets.length > 0) {
+            // Get the last set (most recent) for this exercise
+            lastSet = exercise.sets[exercise.sets.length - 1];
+            break;
+          }
+        }
+        
+        if (lastSet) break;
+      }
+    }
+    
+    // Only update if inputs are empty (don't overwrite user input)
+    if (!weightInput.value || weightInput.value === '0') {
+      weightInput.value = lastSet?.weight || 0;
+    }
+    
+    if (!repsInput.value || repsInput.value === '0') {
+      repsInput.value = lastSet?.reps || 6;
+    }
+  } catch (error) {
+    // Silently fail - defaults are nice-to-have, not required
+    console.error('Error updating workout defaults:', error);
+  }
 }
 
-// Task 63: Get most recent workout for a client
-function getMostRecentWorkout(clientId) {
-  // Get workouts for this client from state
-  const clientWorkouts = state.workouts.filter(w => w.clientId === clientId);
-  
-  if (clientWorkouts.length === 0) {
-    return null;
-  }
-
-  // Sort by date (newest first) and return the most recent
-  const sorted = [...clientWorkouts].sort((a, b) => {
-    return new Date(b.date) - new Date(a.date);
-  });
-
-  return sorted[0];
-}
 
 function formatDate(dateString) {
   const date = new Date(dateString);
@@ -1118,18 +1319,6 @@ function showError(message) {
   }, 5000);
 }
 
-// Helper function to show temporary success message
-function showSuccess(message) {
-  const errorEl = elements.errorMessage; // Reuse error element but with success styling
-  errorEl.textContent = message;
-  errorEl.style.backgroundColor = 'var(--success)';
-  errorEl.style.display = 'block';
-  setTimeout(() => {
-    errorEl.style.display = 'none';
-    errorEl.style.backgroundColor = 'var(--error)'; // Reset color
-  }, 3000);
-}
-
 // Save exercise suggestions to localStorage
 function saveExerciseSuggestions() {
   localStorage.setItem('exerciseSuggestions', JSON.stringify(state.exerciseSuggestions));
@@ -1137,7 +1326,7 @@ function saveExerciseSuggestions() {
 
 // Delete Workout Functions
 async function handleDeleteWorkout(workout) {
-  // Task 33: Add confirmation dialog
+  // Confirmation dialog
   const workoutDate = workout.date || 'this workout';
   const confirmed = confirm(
     `Are you sure you want to delete the workout from ${workoutDate}? This action cannot be undone.`
@@ -1146,6 +1335,9 @@ async function handleDeleteWorkout(workout) {
   if (!confirmed) {
     return; // User cancelled deletion
   }
+  
+  // Close modal if open
+  closeWorkoutModal();
 
   showLoading();
   try {
@@ -1171,6 +1363,13 @@ function openWorkoutModalForEdit(workout) {
   state.editingWorkoutId = workout.workoutId;
   elements.workoutModalTitle.textContent = 'Edit Workout';
   elements.workoutEditFormSubmitBtn.textContent = 'Update Workout';
+  
+  // Show delete button in edit modal
+  const deleteBtn = document.getElementById('delete-workout-btn');
+  if (deleteBtn) {
+    deleteBtn.style.display = 'inline-block';
+    deleteBtn.setAttribute('data-workout-id', workout.workoutId);
+  }
   
   // Pre-fill form with workout data
   document.getElementById('edit-workout-date').value = workout.date || '';
@@ -1237,6 +1436,13 @@ function closeWorkoutModal() {
   }
   state.editingWorkoutId = null;
   elements.editWorkoutExercisesContainer.innerHTML = '';
+  
+  // Hide delete button
+  const deleteBtn = document.getElementById('delete-workout-btn');
+  if (deleteBtn) {
+    deleteBtn.style.display = 'none';
+    deleteBtn.removeAttribute('data-workout-id');
+  }
 }
 
 async function handleWorkoutEditFormSubmit(e) {
@@ -1254,15 +1460,21 @@ async function handleWorkoutEditFormSubmit(e) {
     const date = document.getElementById('edit-workout-date').value;
     const notes = document.getElementById('edit-workout-notes').value.trim();
     
+    // Normalize exercise names
+    const { canonicalizeExerciseName } = await import('/utils/exerciseNormalize.js');
+    
     // Collect exercises and sets from the form
     const exercises = [];
     const exerciseDivs = elements.editWorkoutExercisesContainer.querySelectorAll('.workout-edit-exercise');
     
     exerciseDivs.forEach((exerciseDiv, exerciseIndex) => {
       const exerciseNameInput = exerciseDiv.querySelector('.workout-edit-exercise-name');
-      const exerciseName = exerciseNameInput.value.trim();
+      const exerciseNameRaw = exerciseNameInput.value.trim();
       
-      if (!exerciseName) return; // Skip empty exercises
+      if (!exerciseNameRaw) return; // Skip empty exercises
+      
+      // Use canonical name for storage
+      const exerciseName = canonicalizeExerciseName(exerciseNameRaw);
       
       const sets = [];
       const setDivs = exerciseDiv.querySelectorAll('.workout-edit-set');

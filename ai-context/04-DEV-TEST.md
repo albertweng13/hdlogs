@@ -186,6 +186,19 @@ See `06-TESTING-PATTERNS.md` for established testing patterns as they emerge.
    - If API routes come after static middleware, Express may try to serve static files for API requests
    - **Best Practice**: Register API routes before static file serving
 
+4a. **Express Static File Serving with ES Modules**:
+   - **Critical**: Use absolute paths with `path.join(__dirname, ...)` instead of relative paths for `express.static()`
+   - **ES Modules**: Must use `fileURLToPath(import.meta.url)` to get `__dirname` equivalent
+   - **Example**: 
+     ```javascript
+     import path from 'path';
+     import { fileURLToPath } from 'url';
+     const __dirname = path.dirname(fileURLToPath(import.meta.url));
+     app.use('/utils', express.static(path.join(__dirname, '../utils')));
+     ```
+   - **Why**: Relative paths like `'src/utils'` may fail if server is started from different directory
+   - **Best Practice**: Always use `path.join(__dirname, ...)` for static file paths in Express
+
 5. **Server Restart After Route Changes**:
    - **Always restart the server** after adding new routes (PUT, DELETE, etc.)
    - Express doesn't hot-reload route definitions
@@ -201,6 +214,37 @@ See `06-TESTING-PATTERNS.md` for established testing patterns as they emerge.
    - Verify sheet column structure matches expected format
    - Check JSON parsing for exercises data
    - Validate data types (dates, numbers)
+
+8. **Duplicate Function Declarations**:
+   - **Error**: `Uncaught SyntaxError: Identifier 'functionName' has already been declared`
+   - **Cause**: Same function declared multiple times in the same file (often happens when refactoring or adding features)
+   - **Prevention**: Before adding a new function, search the file for existing declarations using `grep` or IDE search
+   - **Fix**: Remove duplicate declarations, keeping the most complete/robust version
+   - **Best Practice**: When refactoring functions, search for all occurrences first, then update/remove duplicates
+   - **Example**: If `setDefaultDate()` exists at line 100, don't add another `setDefaultDate()` at line 500 - update the existing one instead
+
+9. **Browser Import Path Issues**:
+   - **Error**: Import failures, loading spinner hangs, or "Failed to fetch dynamically imported module"
+   - **Cause**: 
+     - Import paths don't resolve correctly in browser (relative paths like `../utils/` may not work)
+     - Dev server doesn't serve utility directories
+     - Build script doesn't copy utility files to `public/`
+     - Server-side utilities imported in browser code
+   - **Prevention**: 
+     - Use absolute paths (`/utils/exerciseNormalize.js`) instead of relative paths (`../utils/exerciseNormalize.js`)
+     - Ensure dev server serves utility directories using absolute paths: `app.use('/utils', express.static(path.join(__dirname, '../utils')));` (critical: use `path.join` with `__dirname` for ES modules)
+     - Ensure build script copies utility files: `mkdir -p public/utils && cp -r src/utils/*.js public/utils/`
+     - Don't import server-side utilities (like `../api/sheets.js`) in browser code
+     - **Important**: In ES modules, use `fileURLToPath(import.meta.url)` and `path.dirname()` to get `__dirname` equivalent
+   - **Fix**: 
+     - Update import paths to absolute paths
+     - Add static file serving for utils directory in dev server
+     - Update build script to copy utils files
+     - Use `state` data or API calls instead of server-side utilities
+   - **Best Practice**: 
+     - Wrap dynamic imports in try-catch when used with loading states
+     - Test imports work in both dev and production (build) environments
+     - Use `state` data when available instead of importing server-side utilities
 
 ### Debugging Tools
 

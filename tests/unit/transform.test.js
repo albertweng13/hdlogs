@@ -2,8 +2,6 @@ import { describe, it, expect } from '@jest/globals';
 import {
   rowToClient,
   clientToRow,
-  rowToWorkout,
-  workoutToRow,
   rowsToClients,
   rowsToWorkouts,
 } from '../../src/utils/transform.js';
@@ -83,108 +81,6 @@ describe('Transform Utilities', () => {
         '',
         '',
       ]);
-    });
-  });
-
-  describe('rowToWorkout', () => {
-    it('should convert row to workout object with exercises', () => {
-      const exercisesJson = JSON.stringify([
-        {
-          exerciseName: 'Bench Press',
-          sets: [
-            { reps: 5, weight: 135, notes: 'RPE 8' },
-            { reps: 5, weight: 135 },
-          ],
-        },
-      ]);
-      const row = ['workout-123', 'client-123', '2024-01-01', exercisesJson, 'Great session', '2024-01-01'];
-      const workout = rowToWorkout(row);
-      
-      expect(workout).toEqual({
-        workoutId: 'workout-123',
-        clientId: 'client-123',
-        date: '2024-01-01',
-        exercises: [
-          {
-            exerciseName: 'Bench Press',
-            sets: [
-              { reps: 5, weight: 135, notes: 'RPE 8' },
-              { reps: 5, weight: 135 },
-            ],
-          },
-        ],
-        notes: 'Great session',
-        createdAt: '2024-01-01',
-      });
-    });
-
-    it('should handle empty exercises JSON', () => {
-      const row = ['workout-123', 'client-123', '2024-01-01', '[]', 'Notes', '2024-01-01'];
-      const workout = rowToWorkout(row);
-      
-      expect(workout.exercises).toEqual([]);
-    });
-
-    it('should handle invalid exercises JSON gracefully', () => {
-      const row = ['workout-123', 'client-123', '2024-01-01', 'invalid-json', 'Notes', '2024-01-01'];
-      const workout = rowToWorkout(row);
-      
-      expect(workout.exercises).toEqual([]);
-    });
-
-    it('should handle missing exercises field', () => {
-      const row = ['workout-123', 'client-123', '2024-01-01', '', 'Notes', '2024-01-01'];
-      const workout = rowToWorkout(row);
-      
-      expect(workout.exercises).toEqual([]);
-    });
-
-    it('should return null for empty row', () => {
-      const row = [];
-      const workout = rowToWorkout(row);
-      
-      expect(workout).toBeNull();
-    });
-  });
-
-  describe('workoutToRow', () => {
-    it('should convert workout object to row', () => {
-      const workout = {
-        workoutId: 'workout-123',
-        clientId: 'client-123',
-        date: '2024-01-01',
-        exercises: [
-          {
-            exerciseName: 'Bench Press',
-            sets: [
-              { reps: 5, weight: 135, notes: 'RPE 8' },
-            ],
-          },
-        ],
-        notes: 'Great session',
-        createdAt: '2024-01-01',
-      };
-      const row = workoutToRow(workout);
-      
-      expect(row[0]).toBe('workout-123');
-      expect(row[1]).toBe('client-123');
-      expect(row[2]).toBe('2024-01-01');
-      expect(row[3]).toBe(JSON.stringify(workout.exercises));
-      expect(row[4]).toBe('Great session');
-      expect(row[5]).toBe('2024-01-01');
-    });
-
-    it('should handle missing exercises with empty array', () => {
-      const workout = {
-        workoutId: 'workout-123',
-        clientId: 'client-123',
-        date: '2024-01-01',
-        notes: 'Notes',
-        createdAt: '2024-01-01',
-      };
-      const row = workoutToRow(workout);
-      
-      expect(row[3]).toBe('[]');
     });
   });
 

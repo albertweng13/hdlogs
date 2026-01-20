@@ -498,12 +498,19 @@ describe('Sheets Client', () => {
       };
       
       const existingWorkoutId = 'workout-123';
+      // New normalized structure: one row per set
       const mockData = {
         values: [
-          ['workoutId', 'clientId', 'date', 'exercises', 'notes', 'createdAt'],
-          [existingWorkoutId, 'client-1', '2024-01-01', JSON.stringify([{ exerciseName: 'Bench Press', sets: [{ reps: 5, weight: 135 }] }]), 'Old notes', '2024-01-01'],
-          ['workout-456', 'client-2', '2024-01-02', JSON.stringify([]), '', '2024-01-02'],
+          ['workoutId', 'clientId', 'date', 'exerciseName', 'setNumber', 'reps', 'weight', 'volume', 'notes', 'createdAt'],
+          [existingWorkoutId, 'client-1', '2024-01-01', 'Bench Press', '1', '5', '135', '675', 'Old notes', '2024-01-01'],
+          ['workout-456', 'client-2', '2024-01-02', 'Squat', '1', '5', '185', '925', '', '2024-01-02'],
         ],
+      };
+      
+      const mockSpreadsheetWithSheetId = {
+        data: {
+          sheets: [{ properties: { title: 'Workouts', sheetId: 12345 } }],
+        },
       };
       
       const mockAuthInstance = { getClient: jest.fn() };
@@ -513,13 +520,15 @@ describe('Sheets Client', () => {
       // Mock for ensureSheetExists (getAvailableSheets) - returns Workouts sheet exists
       mockSheetsGet.mockResolvedValueOnce({ data: mockSpreadsheetData });
       // Mock for ensureHeadersExist (getSheetData for headers check)
-      mockSheetsValuesGet.mockResolvedValueOnce({ data: { values: [['workoutId', 'clientId', 'date', 'exercises', 'notes', 'createdAt']] } });
+      mockSheetsValuesGet.mockResolvedValueOnce({ data: { values: [['workoutId', 'clientId', 'date', 'exerciseName', 'setNumber', 'reps', 'weight', 'volume', 'notes', 'createdAt']] } });
       // Mock for updateWorkout - getSheetData to find the workout
       mockSheetsValuesGet.mockResolvedValueOnce({ data: mockData });
-      // Mock for updateWorkout - update the row
+      // Mock for updateWorkout - get spreadsheet to get sheetId
+      mockSheetsGet.mockResolvedValueOnce(mockSpreadsheetWithSheetId);
+      // Mock for updateWorkout - batchUpdate for delete/insert
+      mockBatchUpdate.mockResolvedValue({ data: {} });
+      // Mock for updateWorkout - values.update for inserting new rows
       mockSheetsValuesUpdate.mockResolvedValue({ data: { updatedRows: 1 } });
-      // Mock for initializeSheetsClient again (called in updateWorkout)
-      mockSheetsGet.mockResolvedValueOnce({ data: { spreadsheetId: 'test-spreadsheet-id' } });
       
       const { updateWorkout } = await import('../../src/api/sheets.js');
       const updatedData = {
@@ -536,15 +545,20 @@ describe('Sheets Client', () => {
       expect(updatedWorkout.notes).toBe('New notes');
       expect(updatedWorkout.createdAt).toBe('2024-01-01'); // Preserved
       
-      // Verify update was called with correct range and data
-      expect(mockSheetsValuesUpdate).toHaveBeenCalledWith({
-        spreadsheetId: 'test-spreadsheet-id',
-        range: 'Workouts!A2:F2', // Row 2 is the first data row (row 1 is headers)
-        valueInputOption: 'USER_ENTERED',
-        resource: {
-          values: [[existingWorkoutId, 'client-1', '2024-01-15', JSON.stringify([{ exerciseName: 'Deadlift', sets: [{ reps: 5, weight: 225 }] }]), 'New notes', '2024-01-01']],
-        },
-      });
+      // Verify batchUpdate was called for delete/insert
+      expect(mockBatchUpdate).toHaveBeenCalled();
+      // Verify values.update was called with new normalized rows (one per set)
+      expect(mockSheetsValuesUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spreadsheetId: 'test-spreadsheet-id',
+          valueInputOption: 'USER_ENTERED',
+          resource: {
+            values: expect.arrayContaining([
+              expect.arrayContaining([existingWorkoutId, 'client-1', '2024-01-15', 'Deadlift', '1', '5', '225'])
+            ]),
+          },
+        })
+      );
     });
 
     it('should preserve existing fields when only partial update is provided', async () => {
@@ -559,12 +573,18 @@ describe('Sheets Client', () => {
       };
       
       const existingWorkoutId = 'workout-123';
-      const originalExercises = [{ exerciseName: 'Bench Press', sets: [{ reps: 5, weight: 135 }] }];
+      // New normalized structure: one row per set
       const mockData = {
         values: [
-          ['workoutId', 'clientId', 'date', 'exercises', 'notes', 'createdAt'],
-          [existingWorkoutId, 'client-1', '2024-01-01', JSON.stringify(originalExercises), 'Old notes', '2024-01-01'],
+          ['workoutId', 'clientId', 'date', 'exerciseName', 'setNumber', 'reps', 'weight', 'volume', 'notes', 'createdAt'],
+          [existingWorkoutId, 'client-1', '2024-01-01', 'Bench Press', '1', '5', '135', '675', 'Old notes', '2024-01-01'],
         ],
+      };
+      
+      const mockSpreadsheetWithSheetId = {
+        data: {
+          sheets: [{ properties: { title: 'Workouts', sheetId: 12345 } }],
+        },
       };
       
       const mockAuthInstance = { getClient: jest.fn() };
@@ -574,10 +594,14 @@ describe('Sheets Client', () => {
       // Mock 2: getAvailableSheets calls client.spreadsheets.get() to get sheets list
       mockSheetsGet.mockResolvedValueOnce({ data: mockSpreadsheetData });
       // Mock 3: ensureHeadersExist calls getSheetData to check headers
-      mockSheetsValuesGet.mockResolvedValueOnce({ data: { values: [['workoutId', 'clientId', 'date', 'exercises', 'notes', 'createdAt']] } });
+      mockSheetsValuesGet.mockResolvedValueOnce({ data: { values: [['workoutId', 'clientId', 'date', 'exerciseName', 'setNumber', 'reps', 'weight', 'volume', 'notes', 'createdAt']] } });
       // Mock 4: updateWorkout calls getSheetData to find the workout
       mockSheetsValuesGet.mockResolvedValueOnce({ data: mockData });
-      // Mock 5: updateWorkout calls client.spreadsheets.values.update() (client is cached)
+      // Mock 5: updateWorkout calls get spreadsheet to get sheetId
+      mockSheetsGet.mockResolvedValueOnce(mockSpreadsheetWithSheetId);
+      // Mock 6: updateWorkout calls batchUpdate for delete/insert
+      mockBatchUpdate.mockResolvedValue({ data: {} });
+      // Mock 7: updateWorkout calls values.update for inserting new rows
       mockSheetsValuesUpdate.mockResolvedValue({ data: { updatedRows: 1 } });
       
       const { updateWorkout } = await import('../../src/api/sheets.js');
@@ -589,7 +613,7 @@ describe('Sheets Client', () => {
       
       expect(updatedWorkout.workoutId).toBe(existingWorkoutId);
       expect(updatedWorkout.date).toBe('2024-01-01'); // Preserved
-      expect(updatedWorkout.exercises).toEqual(originalExercises); // Preserved
+      expect(updatedWorkout.exercises).toEqual([{ exerciseName: 'Bench Press', sets: [{ reps: 5, weight: 135, notes: 'Old notes' }] }]); // Preserved (notes from set are preserved)
       expect(updatedWorkout.notes).toBe('New notes'); // Updated
       expect(updatedWorkout.createdAt).toBe('2024-01-01'); // Preserved
     });
@@ -607,8 +631,8 @@ describe('Sheets Client', () => {
       
       const mockData = {
         values: [
-          ['workoutId', 'clientId', 'date', 'exercises', 'notes', 'createdAt'],
-          ['workout-456', 'client-2', '2024-01-02', JSON.stringify([]), '', '2024-01-02'],
+          ['workoutId', 'clientId', 'date', 'exerciseName', 'setNumber', 'reps', 'weight', 'volume', 'notes', 'createdAt'],
+          ['workout-456', 'client-2', '2024-01-02', 'Squat', '1', '5', '185', '925', '', '2024-01-02'],
         ],
       };
       
@@ -619,7 +643,7 @@ describe('Sheets Client', () => {
       // Mock 2: getAvailableSheets calls client.spreadsheets.get() to get sheets list
       mockSheetsGet.mockResolvedValueOnce({ data: mockSpreadsheetData });
       // Mock 3: ensureHeadersExist calls getSheetData to check headers
-      mockSheetsValuesGet.mockResolvedValueOnce({ data: { values: [['workoutId', 'clientId', 'date', 'exercises', 'notes', 'createdAt']] } });
+      mockSheetsValuesGet.mockResolvedValueOnce({ data: { values: [['workoutId', 'clientId', 'date', 'exerciseName', 'setNumber', 'reps', 'weight', 'volume', 'notes', 'createdAt']] } });
       // Mock 4: updateWorkout calls getSheetData to find the workout (won't find workout-nonexistent)
       mockSheetsValuesGet.mockResolvedValueOnce({ data: mockData });
       // No mock needed for update since it throws before calling update
@@ -647,12 +671,18 @@ describe('Sheets Client', () => {
       
       const existingWorkoutId = 'workout-123';
       const originalCreatedAt = '2024-01-01';
-      const originalExercises = [{ exerciseName: 'Bench Press', sets: [{ reps: 5, weight: 135 }] }];
+      // New normalized structure: one row per set
       const mockData = {
         values: [
-          ['workoutId', 'clientId', 'date', 'exercises', 'notes', 'createdAt'],
-          [existingWorkoutId, 'client-1', '2024-01-01', JSON.stringify(originalExercises), 'Old notes', originalCreatedAt],
+          ['workoutId', 'clientId', 'date', 'exerciseName', 'setNumber', 'reps', 'weight', 'volume', 'notes', 'createdAt'],
+          [existingWorkoutId, 'client-1', '2024-01-01', 'Bench Press', '1', '5', '135', '675', 'Old notes', originalCreatedAt],
         ],
+      };
+      
+      const mockSpreadsheetWithSheetId = {
+        data: {
+          sheets: [{ properties: { title: 'Workouts', sheetId: 12345 } }],
+        },
       };
       
       const mockAuthInstance = { getClient: jest.fn() };
@@ -662,10 +692,14 @@ describe('Sheets Client', () => {
       // Mock 2: getAvailableSheets calls client.spreadsheets.get() to get sheets list
       mockSheetsGet.mockResolvedValueOnce({ data: mockSpreadsheetData });
       // Mock 3: ensureHeadersExist calls getSheetData to check headers
-      mockSheetsValuesGet.mockResolvedValueOnce({ data: { values: [['workoutId', 'clientId', 'date', 'exercises', 'notes', 'createdAt']] } });
+      mockSheetsValuesGet.mockResolvedValueOnce({ data: { values: [['workoutId', 'clientId', 'date', 'exerciseName', 'setNumber', 'reps', 'weight', 'volume', 'notes', 'createdAt']] } });
       // Mock 4: updateWorkout calls getSheetData to find the workout
       mockSheetsValuesGet.mockResolvedValueOnce({ data: mockData });
-      // Mock 5: updateWorkout calls client.spreadsheets.values.update() (client is cached from earlier)
+      // Mock 5: updateWorkout calls get spreadsheet to get sheetId
+      mockSheetsGet.mockResolvedValueOnce(mockSpreadsheetWithSheetId);
+      // Mock 6: updateWorkout calls batchUpdate for delete/insert
+      mockBatchUpdate.mockResolvedValue({ data: {} });
+      // Mock 7: updateWorkout calls values.update for inserting new rows
       mockSheetsValuesUpdate.mockResolvedValueOnce({ data: { updatedRows: 1 } });
       
       const { updateWorkout } = await import('../../src/api/sheets.js');
@@ -681,11 +715,17 @@ describe('Sheets Client', () => {
       expect(updatedWorkout.notes).toBe('New notes');
       expect(updatedWorkout.createdAt).toBe(originalCreatedAt); // Original timestamp preserved
       
+      // Verify batchUpdate was called
+      expect(mockBatchUpdate).toHaveBeenCalled();
       // Verify update call preserves original workoutId and createdAt
       expect(mockSheetsValuesUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
+          spreadsheetId: 'test-spreadsheet-id',
+          valueInputOption: 'USER_ENTERED',
           resource: {
-            values: [[existingWorkoutId, 'client-1', '2024-01-01', JSON.stringify(originalExercises), 'New notes', originalCreatedAt]],
+            values: expect.arrayContaining([
+              expect.arrayContaining([existingWorkoutId, 'client-1', '2024-01-01', 'Bench Press'])
+            ]),
           },
         })
       );
