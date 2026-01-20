@@ -13,26 +13,41 @@ The error occurred because the `runtime` format `nodejs20.x` in the `functions` 
 1. Auto-detection (no explicit runtime, relies on `engines` in `package.json`)
 2. Correct runtime format: `vercel/node@20.x` or `@vercel/node@20.x` (not `nodejs20.x`)
 
-## Solution
+## Solution (FINAL - WORKING)
 
-**Approach 1 (Current - Recommended)**: Remove explicit runtime, rely on auto-detection:
-1. **Removed `functions` section from `vercel.json`**:
-   - Vercel auto-detects Node.js runtime for files in `api/` directory
-   - Explicit runtime specification was causing the error
+**The Fix**: Remove `functions` section entirely and rely on Vercel's auto-detection:
 
-2. **Updated `engines` field in `package.json`**:
-   - Changed from `"node": ">=18.0.0"` to `"node": "20.x"`
-   - More specific version helps Vercel detect the correct runtime
+1. **Removed `functions` section from `vercel.json` completely**:
+   - Vercel automatically detects Node.js runtime for files in `api/` directory
+   - No explicit runtime specification needed for official Node.js runtime
+   - The error was caused by trying to specify a runtime format that Vercel didn't recognize
 
-**Approach 2 (Fallback - if Approach 1 doesn't work)**: Use correct runtime format:
-- If auto-detection still fails, add back `functions` section with format: `"runtime": "vercel/node@20.x"`
-- Or try: `"runtime": "@vercel/node@20.x"`
+2. **Keep `engines` field in `package.json`**:
+   - Set to `"node": "20.x"` (specific version, not range)
+   - Vercel uses this to determine Node.js version
+   - Warning message confirms Vercel is reading this correctly
+
+3. **Keep API rewrite in `vercel.json`**:
+   - `"source": "/api/:path*"` → `"destination": "/api/index.js"`
+   - This routes all API requests to the serverless function
+
+**What Didn't Work**:
+- `"runtime": "nodejs20.x"` - Invalid format
+- `"runtime": "@vercel/node"` - Still triggered error
+- `"runtime": "vercel/node@20.x"` - Not needed for official runtimes
+- Any `functions` section with `runtime` key - Causes the error
+
+**Key Learning**: For official Node.js runtime, DO NOT specify `runtime` in `functions` section. Vercel auto-detects based on file location (`api/` directory) and `engines` in `package.json`.
 
 ## Context Files Updated
 
-- ✅ `vercel.json` - Removed `functions` section (let Vercel auto-detect based on `engines`)
-- ✅ `package.json` - Updated `engines` field from `">=18.0.0"` to `"20.x"` for more specific version
-- ✅ `ai-context/04-DEV-TEST.md` - Will be updated to reflect auto-detection approach
+- ✅ `vercel.json` - Removed `functions` section completely (let Vercel auto-detect Node.js runtime)
+- ✅ `package.json` - Updated `engines` field from `">=18.0.0"` to `"20.x"` for specific version
+- ✅ `ai-context/04-DEV-TEST.md` - Updated to reflect auto-detection approach (no `functions` section needed)
+
+## Result
+
+✅ **Build Successful** - Deployment now works correctly. Vercel auto-detects Node.js 20.x from `engines` field and treats `api/index.js` as a serverless function automatically.
 
 ## Prevention Strategy
 
