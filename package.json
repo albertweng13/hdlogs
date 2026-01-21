@@ -1,5 +1,5 @@
 {
-  "name": "warbak-trainer",
+  "name": "hdlogs",
   "version": "1.0.0",
   "description": "Web application for personal gym trainers to manage clients and workout data",
   "main": "src/api/routes.js",

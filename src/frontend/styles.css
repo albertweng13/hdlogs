@@ -178,6 +178,138 @@ body {
   overflow-y: auto;
 }
 
+/* Client Selected View - Boxes Layout */
+.client-selected-view {
+  margin-bottom: 2rem;
+}
+
+.client-boxes-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.client-box {
+  background-color: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 1.5rem;
+  border: 1px solid var(--border-color);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.client-box:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.client-box .box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.client-box .box-header h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.client-box .box-content {
+  color: var(--text-secondary);
+}
+
+.client-info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.client-info-item {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.client-info-item strong {
+  color: var(--text-primary);
+  display: inline-block;
+  min-width: 60px;
+}
+
+.client-info-item span {
+  color: var(--text-secondary);
+}
+
+.box-description {
+  margin: 0 0 1rem 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.todo-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.new-session-box .btn-primary {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+/* View Header with Back Button and End Session */
+.view-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.view-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  flex: 1;
+}
+
+.btn-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+  border-radius: 6px;
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-back:hover {
+  background-color: var(--bg-tertiary);
+  border-color: var(--accent-primary);
+}
+
+.btn-end-session {
+  padding: 0.5rem 1.5rem;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
 .client-details-section {
   margin-bottom: 2rem;
   padding-bottom: 1.5rem;
@@ -222,6 +354,12 @@ body {
   padding: 1.5rem;
   background-color: var(--bg-secondary);
   border-radius: 8px;
+}
+
+.workout-form-section .view-header {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .workout-form-section h2 {
@@ -414,12 +552,21 @@ body {
 }
 
 .btn-danger {
-  background-color: var(--error);
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  background-color: var(--bg-tertiary);
   color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .btn-danger:hover {
-  background-color: #e53935;
+  background-color: var(--error);
+  border-color: var(--error);
 }
 
 .btn-save {
@@ -569,6 +716,27 @@ body {
   background-color: var(--bg-tertiary);
 }
 
+/* Visual grouping for workout rows */
+.workout-row {
+  border-left: 3px solid transparent;
+}
+
+.workout-first-row {
+  border-top: 2px solid var(--border-color);
+  border-left: 3px solid var(--accent-primary);
+}
+
+.workout-date-cell,
+.workout-actions-cell {
+  vertical-align: top;
+  font-weight: 500;
+}
+
+.exercise-name-cell {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
 .no-data-message {
   text-align: center;
   padding: 2rem;
@@ -659,10 +827,10 @@ body {
 
 .workout-edit-set {
   display: grid;
-  grid-template-columns: 1fr 1fr 2fr;
+  grid-template-columns: 1fr 1fr 2fr auto;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
   align-items: center;
+  margin-bottom: 0.5rem;
 }
 
 .workout-edit-set input {
@@ -674,11 +842,51 @@ body {
   font-size: 0.9rem;
 }
 
+/* Delete Set Button - Simple Red X */
+.btn-delete-set {
+  background: none;
+  border: none;
+  color: var(--error);
+  font-size: 1.5rem;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.btn-delete-set:hover {
+  color: #e53935;
+  background-color: rgba(244, 67, 54, 0.1);
+  border-radius: 4px;
+}
+
+.btn-delete-set:active {
+  color: #c62828;
+}
+
 .form-actions {
   display: flex;
   gap: 1rem;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   margin-top: 1.5rem;
+}
+
+.form-actions-left {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.form-actions-right {
+  display: flex;
+  gap: 0.75rem;
+  margin-left: auto;
 }
 
 /* Loading Overlay */
@@ -719,6 +927,21 @@ body {
   border-radius: 6px;
   z-index: 3000;
   max-width: 400px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Success Message - Fixed notification in top right */
+#success-message.success-message {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 1rem 1.5rem;
+  background-color: var(--success);
+  color: var(--text-primary);
+  border-radius: 6px;
+  z-index: 3000;
+  max-width: 400px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
 /* Responsive Design */
@@ -906,6 +1129,15 @@ body {
 
   .form-actions {
     flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .form-actions-left,
+  .form-actions-right {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
   .form-actions button {
@@ -919,6 +1151,11 @@ body {
   .workout-edit-set {
     grid-template-columns: 1fr;
     gap: 0.5rem;
+  }
+  
+  .workout-edit-set .btn-delete-set {
+    width: 100%;
+    margin-top: 0.25rem;
   }
 
   .workout-edit-set input {

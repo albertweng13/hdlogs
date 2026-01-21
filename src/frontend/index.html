@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Warbak Assistant</title>
+  <title>hdlogs</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="app-container">
     <header class="app-header">
-      <h1>Warbak Assistant</h1>
+      <h1>hdlogs</h1>
     </header>
 
     <div class="main-content">
@@ -35,32 +35,63 @@
 
       <!-- Right Panel: Client Details and Workouts -->
       <main class="content-panel">
-        <div id="client-details-section" class="client-details-section" style="display: none;">
-          <div class="client-info">
-            <div class="client-header">
-              <h2 id="client-name"></h2>
-              <div class="client-actions">
+        <!-- Empty State (when no client selected) -->
+        <section id="no-client-selected-section" class="no-client-selected-section" style="display: none;">
+          <div class="empty-state">
+            <p class="empty-state-message">Select a client to view details and add workouts</p>
+          </div>
+        </section>
+
+        <!-- Client Selected View: Boxes Layout -->
+        <div id="client-selected-view" class="client-selected-view" style="display: none;">
+          <div class="client-boxes-container">
+            <!-- Client Info Box -->
+            <div class="client-box client-info-box">
+              <div class="box-header">
+                <h3>Client Info</h3>
                 <button id="edit-client-btn" class="btn-secondary btn-icon" title="Edit Client">Edit</button>
               </div>
+              <div class="box-content">
+                <div class="client-info-content">
+                  <p class="client-info-item"><strong>Name:</strong> <span id="client-name"></span></p>
+                  <p class="client-info-item"><strong>Email:</strong> <span id="client-email"></span></p>
+                  <p class="client-info-item"><strong>Phone:</strong> <span id="client-phone"></span></p>
+                  <p class="client-info-item"><strong>Notes:</strong> <span id="client-notes"></span></p>
+                </div>
+              </div>
             </div>
-            <div class="client-meta">
-              <p id="client-email"></p>
-              <p id="client-phone"></p>
-              <p id="client-notes"></p>
+
+            <!-- New Session Box -->
+            <div class="client-box new-session-box">
+              <div class="box-header">
+                <h3>New Session</h3>
+              </div>
+              <div class="box-content">
+                <p class="box-description">Start a new workout session for this client</p>
+                <button id="new-session-btn" class="btn-primary">Start New Session</button>
+              </div>
+            </div>
+
+            <!-- Stats Box (TODO) -->
+            <div class="client-box stats-box">
+              <div class="box-header">
+                <h3>Stats</h3>
+              </div>
+              <div class="box-content">
+                <p class="box-description">Workout statistics and progress tracking</p>
+                <p class="todo-badge">Coming Soon</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Empty State (when no client selected) -->
-        <section id="no-client-selected-section" class="no-client-selected-section" style="display: none;">
-          <div class="empty-state">
-            <p class="empty-state-message">Select a client to add workouts</p>
-          </div>
-        </section>
-
-        <!-- Add Workout Entry Form -->
+        <!-- New Session View: Workout Entry Form -->
         <section id="workout-form-section" class="workout-form-section" style="display: none;">
-          <h2>Add Workout Entry</h2>
+          <div class="view-header">
+            <button id="back-to-client-view-btn" class="btn-icon btn-back" title="Back to Client View">←</button>
+            <h2>Workout Session</h2>
+            <button id="end-session-btn" class="btn-primary btn-end-session" title="End Session">End Session</button>
+          </div>
           <form id="workout-form" class="workout-form">
             <div class="form-group">
               <label for="workout-date">Date <span class="required">*</span></label>
@@ -138,8 +169,8 @@
           </form>
         </section>
 
-        <!-- Recent Sessions Table -->
-        <section class="workout-history-section">
+        <!-- Recent Sessions Table (Always Visible When Client Selected) -->
+        <section id="workout-history-section" class="workout-history-section" style="display: none;">
           <div class="workout-history-header">
             <h2>Recent Sessions</h2>
             <div class="workout-history-controls">
@@ -233,6 +264,9 @@
             <div id="edit-workout-exercises-container">
               <!-- Exercises and sets will be populated here -->
             </div>
+            <button type="button" class="btn-icon btn-secondary" id="add-exercise-btn" style="margin-top: 0.5rem;">
+              <span style="font-size: 1.2rem;">+</span> Add Exercise
+            </button>
           </div>
 
           <div class="form-group">
@@ -241,9 +275,13 @@
           </div>
 
           <div class="form-actions">
-            <button type="button" class="btn-secondary" id="cancel-workout-btn">Cancel</button>
-            <button type="button" class="btn-danger" id="delete-workout-btn" style="display: none;">Delete Workout</button>
-            <button type="submit" class="btn-primary" id="workout-edit-form-submit-btn">Update Workout</button>
+            <div class="form-actions-left">
+              <button type="button" class="btn-danger" id="delete-workout-btn" style="display: none;">Delete Workout</button>
+            </div>
+            <div class="form-actions-right">
+              <button type="button" class="btn-secondary" id="cancel-workout-btn">Cancel</button>
+              <button type="submit" class="btn-primary" id="workout-edit-form-submit-btn">Update Workout</button>
+            </div>
           </div>
         </form>
       </div>
@@ -256,6 +294,9 @@
 
     <!-- Error Message -->
     <div id="error-message" class="error-message" style="display: none;"></div>
+
+    <!-- Success Message -->
+    <div id="success-message" class="success-message" style="display: none;"></div>
   </div>
 
   <script type="module" src="app.js"></script>

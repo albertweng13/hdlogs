@@ -1,8 +1,8 @@
-# MVP Design Document: Warbak Trainer
+# MVP Design Document: hdlogs
 
 ## Purpose
 
-Warbak Trainer is a web application that enables personal gym trainers to organize and manage their clients' workout data. The app provides a clean, simple interface for non-technical trainers to input, organize, and view client information and workout sessions, with Google Sheets serving as the backend data store.
+hdlogs is a web application that enables personal gym trainers to organize and manage their clients' workout data. The app provides a clean, simple interface for non-technical trainers to input, organize, and view client information and workout sessions, with Google Sheets serving as the backend data store.
 
 ## Primary User
 
@@ -62,45 +62,106 @@ The following features are **explicitly excluded** from Iteration 1:
 **Note: All flows occur on a single page. No page navigation or routing.**
 
 ### Single-Page Layout Structure
-- **Left/Left Panel**: Client list (always visible)
-- **Right/Main Panel**: Selected client's details, workout history, and workout input form (updates based on selection)
+- **Left Panel**: Client list (always visible)
+- **Right/Main Panel**: 
+  - When no client selected: Empty state message
+  - When client selected: 
+    - **Client Info View**: Three boxes displayed:
+      - **Client Info Box**: Shows client details (name, email, phone, notes) with Edit button
+      - **New Session Box**: Button to start a new workout session
+      - **Stats Box**: Placeholder for future stats feature (marked as "Coming Soon")
+    - **New Session View**: Workout entry form with back button
+    - **Recent Sessions**: Always visible at bottom when client is selected (shows workout history table)
 
 ### Flow 1: Add New Client and Input First Workout
 1. Trainer opens the application (single page loads)
-2. Trainer sees client list on one side and empty/placeholder on the other
+2. Trainer sees client list on left and empty state message on right
 3. Trainer clicks "Add New Client" button
-4. Client input form appears (inline or in main panel)
+4. Client input modal appears
 5. Trainer enters client information (name, contact info, basic details)
 6. Trainer saves the client
-7. New client appears in client list and is automatically selected
-8. Main panel shows client details and workout input form
-9. Trainer enters workout data (date, exercises, sets, reps, weights, notes) in the form
-10. Trainer saves the workout
-11. Workout immediately appears in the client's workout history section on the same page
+7. Success notification appears: "Client created successfully!"
+8. New client appears in client list and is automatically selected
+9. Main panel shows **Client Info View** with three boxes:
+   - Client Info box (with client details and Edit button)
+   - New Session box (with "Start New Session" button)
+   - Stats box (placeholder)
+10. Recent Sessions table appears at bottom (initially empty)
+11. Trainer clicks "Start New Session" button
+12. View smoothly transitions to **New Session View** showing workout entry form
+13. Trainer enters workout data (date, exercises, sets, reps, weights, notes)
+14. Trainer saves the workout entry
+15. Success notification appears: "Workout entry saved successfully!"
+16. View automatically transitions back to Client Info View after 500ms
+17. Workout immediately appears in the Recent Sessions table at bottom
 
 ### Flow 2: View Client List and Select Client
 1. Trainer opens the application
-2. Trainer sees client list on one side of the page
+2. Trainer sees client list on left side of the page
 3. Trainer clicks on a client name in the list
-4. Main panel updates to show that client's details and workout history (no page reload)
-5. Workout input form is available for that client
+4. Main panel updates to show **Client Info View** with three boxes:
+   - Client Info box (with selected client's details)
+   - New Session box
+   - Stats box
+5. Recent Sessions table appears at bottom showing that client's workout history
+6. All visible on the same page without navigation
 
-### Flow 3: Input Workout for Existing Client
+### Flow 3: Input Multiple Workouts in a Session
 1. Trainer opens the application
 2. Trainer sees client list and selects an existing client
-3. Main panel shows client details and workout history
-4. Trainer uses the workout input form (visible in main panel)
-5. Trainer enters workout data (date, exercises, sets, reps, weights, notes)
-6. Trainer saves the workout
-7. New workout immediately appears in the workout history section on the same page (no page reload)
+3. **Client Info View** appears with three boxes and Recent Sessions at bottom
+4. Trainer clicks "Start New Session" button
+5. View smoothly transitions to **New Session View** showing workout entry form
+6. Trainer enters first workout entry (date, exercise, sets, reps, weights, notes)
+7. Trainer saves the entry
+8. Success notification appears: "Workout entry added to session!"
+9. Form clears and trainer can add another entry to the same session
+10. Trainer adds multiple entries (all entries merge into the same workout session)
+11. Trainer clicks "End Session" button (top right) or back arrow (top left) when done
+12. View transitions back to Client Info View
+13. All entries appear as one workout session in Recent Sessions table
 
-### Flow 4: View Client Workout History
-1. Trainer opens the application
-2. Trainer sees client list on one side
-3. Trainer clicks on a client
-4. Main panel updates to show that client's workout history
-5. Workouts displayed in chronological order (newest or oldest first)
-6. All visible on the same page without navigation
+### Flow 4: Navigate Between Views
+1. Trainer selects a client → **Client Info View** appears
+2. Trainer clicks "Start New Session" → View transitions to **New Session View**
+3. Trainer clicks "← Back" button → View transitions back to **Client Info View**
+4. Recent Sessions table remains visible at bottom throughout navigation
+
+### Flow 5: Edit Client Information
+1. Trainer selects a client → **Client Info View** appears
+2. Trainer clicks "Edit" button in Client Info box
+3. Client edit modal appears
+4. Trainer updates client information
+5. Trainer saves changes
+6. Client Info box updates with new information
+7. Recent Sessions remain visible at bottom
+
+## Workout Session Determination
+
+**Behavior**: Each "New Session" creates a **workout session** that can contain multiple workout entries.
+
+- When the user clicks "Start New Session", they enter **session mode**
+- The first workout entry saved creates a new workout session with a unique `workoutId`
+- Subsequent entries in the same session are **merged** into that workout session
+- Multiple entries can be added to the same session (all exercises and sets accumulate)
+- User clicks "End Session" or back arrow to exit session mode and return to Client Info View
+- Multiple separate workout sessions can exist on the **same date** for the same client
+- Each workout session is independent and can contain multiple exercises, each with multiple sets
+- Workout sessions are identified by their unique `workoutId`
+
+**Session Flow**:
+1. Click "Start New Session" → Enter session mode
+2. Add workout entries → Each entry merges into the current session
+3. Click "End Session" or back arrow → Exit session mode, session is finalized
+4. Session appears in Recent Sessions table as one workout session
+
+**Implication**: 
+- Users can add multiple workout entries to build up a complete session
+- All entries in a session are grouped together as one workout session
+- Users can have multiple separate workout sessions on the same day
+- Each session represents a distinct workout session (e.g., morning session vs. evening session)
+- Sessions are displayed in the Recent Sessions table, grouped by date if enabled
+- Each session can be edited or deleted independently
 
 ## Data Model / Interfaces
 

@@ -14,6 +14,9 @@ let state = {
   workoutSortOrder: 'newest', // Track workout sort order: 'newest' or 'oldest'
   groupWorkoutsByDate: true, // Track whether to group workouts by date
   workoutDateFilter: '', // Track date filter for workout history
+  currentView: 'none', // Current view: 'none', 'client-info', 'new-session'
+  isInSession: false, // Track if user is in an active workout session
+  currentSessionWorkoutId: null, // Track the workoutId of the current session (null if no session active)
 };
 
 // DOM Elements
@@ -51,6 +54,14 @@ const elements = {
   cancelWorkoutBtn: document.getElementById('cancel-workout-btn'),
   closeWorkoutModal: document.querySelector('.close-workout-modal'),
   editWorkoutExercisesContainer: document.getElementById('edit-workout-exercises-container'),
+  noClientSection: document.getElementById('no-client-selected-section'),
+  clientSelectedView: document.getElementById('client-selected-view'),
+  newSessionBtn: document.getElementById('new-session-btn'),
+  backToClientViewBtn: document.getElementById('back-to-client-view-btn'),
+  workoutFormSection: document.getElementById('workout-form-section'),
+  workoutHistorySection: document.getElementById('workout-history-section'),
+  successMessage: document.getElementById('success-message'),
+  endSessionBtn: document.getElementById('end-session-btn'),
 };
 
 // Initialize App
@@ -86,12 +97,35 @@ function setupEventListeners() {
     });
   }
 
-  // Edit Client Button
-  elements.editClientBtn.addEventListener('click', () => {
-    if (state.selectedClient) {
-      openClientModalForEdit(state.selectedClient);
-    }
-  });
+  // Edit Client Button (in Client Info box)
+  if (elements.editClientBtn) {
+    elements.editClientBtn.addEventListener('click', () => {
+      if (state.selectedClient) {
+        openClientModalForEdit(state.selectedClient);
+      }
+    });
+  }
+
+  // New Session Button
+  if (elements.newSessionBtn) {
+    elements.newSessionBtn.addEventListener('click', () => {
+      showNewSessionView();
+    });
+  }
+
+  // Back to Client View Button (ends session and goes back)
+  if (elements.backToClientViewBtn) {
+    elements.backToClientViewBtn.addEventListener('click', () => {
+      endSession();
+    });
+  }
+
+  // End Session Button
+  if (elements.endSessionBtn) {
+    elements.endSessionBtn.addEventListener('click', () => {
+      endSession();
+    });
+  }
 
 
   // Close Modal
@@ -189,6 +223,12 @@ function setupEventListeners() {
   // Workout Edit Form Submit
   if (elements.workoutEditForm) {
     elements.workoutEditForm.addEventListener('submit', handleWorkoutEditFormSubmit);
+  }
+
+  // Add Exercise Button (in Edit Workout Modal)
+  const addExerciseBtn = document.getElementById('add-exercise-btn');
+  if (addExerciseBtn) {
+    addExerciseBtn.addEventListener('click', handleAddExerciseToEdit);
   }
 
   // Number input +/- buttons for weight
@@ -458,20 +498,16 @@ function selectClient(client) {
 }
 
 function renderClientDetails() {
-  const workoutFormSection = document.getElementById('workout-form-section');
-  const noClientSection = document.getElementById('no-client-selected-section');
-  
   if (!state.selectedClient) {
-    elements.clientDetailsSection.style.display = 'none';
-    if (workoutFormSection) workoutFormSection.style.display = 'none';
-    if (noClientSection) noClientSection.style.display = 'block';
+    // No client selected - show empty state
+    showNoClientView();
     return;
   }
 
-  elements.clientDetailsSection.style.display = 'block';
-  if (workoutFormSection) workoutFormSection.style.display = 'block';
-  if (noClientSection) noClientSection.style.display = 'none';
+  // Client selected - show client info view by default
+  showClientInfoView();
   
+  // Update client info display
   elements.clientName.textContent = state.selectedClient.name || 'No name';
   elements.clientEmail.textContent = state.selectedClient.email || 'No email';
   elements.clientPhone.textContent = state.selectedClient.phone || 'No phone';
@@ -482,6 +518,62 @@ function renderClientDetails() {
   
   // Update workout defaults when client is selected
   updateWorkoutDefaults();
+  
+  // Load workouts for this client
+  loadWorkouts(state.selectedClient.clientId);
+}
+
+// Show no client selected view
+function showNoClientView() {
+  state.currentView = 'none';
+  if (elements.noClientSection) elements.noClientSection.style.display = 'block';
+  if (elements.clientSelectedView) elements.clientSelectedView.style.display = 'none';
+  if (elements.workoutFormSection) elements.workoutFormSection.style.display = 'none';
+  if (elements.workoutHistorySection) elements.workoutHistorySection.style.display = 'none';
+}
+
+// Show client info view (boxes layout)
+function showClientInfoView() {
+  state.currentView = 'client-info';
+  state.isInSession = false;
+  state.currentSessionWorkoutId = null;
+  
+  if (elements.noClientSection) elements.noClientSection.style.display = 'none';
+  if (elements.clientSelectedView) elements.clientSelectedView.style.display = 'block';
+  if (elements.workoutFormSection) elements.workoutFormSection.style.display = 'none';
+  // Recent Sessions always visible when client is selected
+  if (elements.workoutHistorySection && state.selectedClient) {
+    elements.workoutHistorySection.style.display = 'block';
+  }
+}
+
+// Show new session view (workout entry form)
+function showNewSessionView() {
+  state.currentView = 'new-session';
+  state.isInSession = true;
+  state.currentSessionWorkoutId = null; // Will be set when first entry is saved
+  
+  if (elements.noClientSection) elements.noClientSection.style.display = 'none';
+  if (elements.clientSelectedView) elements.clientSelectedView.style.display = 'none';
+  if (elements.workoutFormSection) elements.workoutFormSection.style.display = 'block';
+  // Recent Sessions always visible when client is selected
+  if (elements.workoutHistorySection && state.selectedClient) {
+    elements.workoutHistorySection.style.display = 'block';
+  }
+  
+  // Set default date and focus on exercise input
+  setDefaultDate();
+  const exerciseInput = document.getElementById('workout-exercise');
+  if (exerciseInput) {
+    setTimeout(() => exerciseInput.focus(), 100);
+  }
+}
+
+// End current session and return to client info view
+function endSession() {
+  state.isInSession = false;
+  state.currentSessionWorkoutId = null;
+  showClientInfoView();
 }
 
 function openClientModalForNew() {
@@ -732,6 +824,9 @@ async function handleClientFormSubmit(e) {
       updateSearchUI();
       closeClientModal();
       selectClient(newClient);
+      
+      // Show success notification
+      showSuccess('Client created successfully!');
     }
   } catch (error) {
     // Task 51: Handle validation errors from server
@@ -926,30 +1021,58 @@ function renderUngroupedWorkoutHistory(sortedWorkouts) {
 }
 
 // Helper function to render rows for a single workout
+// 
+// IMPORTANT: Understanding the grouping:
+// - Each workout session is displayed as MULTIPLE table rows (one row per set)
+// - The data structure is normalized: Google Sheets stores one row per set
+// - A workout can have multiple exercises, each with multiple sets
+// - Example: A workout with "Bench Press" (3 sets) + "Squat" (3 sets) = 6 table rows
+// - All rows with the same workoutId belong to the same workout session
+// - The Edit button only appears on the FIRST row because it edits the ENTIRE workout session
+//   (all exercises and all sets), not just that one row
 function renderWorkoutRows(workout) {
   let isFirstRowOfWorkout = true;
+  const totalSets = getTotalSetCount(workout);
   
   workout.exercises.forEach((exercise, exerciseIndex) => {
     exercise.sets.forEach((set, setIndex) => {
       const row = document.createElement('tr');
       row.setAttribute('data-workout-id', workout.workoutId);
+      row.className = 'workout-row';
+      
+      // Add visual grouping: first row of workout gets a top border
+      if (isFirstRowOfWorkout && exerciseIndex === 0 && setIndex === 0) {
+        row.classList.add('workout-first-row');
+      }
+      
       const weightReps = `${set.weight}lbs x ${set.reps}reps`;
       const volume = (set.weight || 0) * (set.reps || 0);
       
+      // Show date only on first row of workout (using rowspan to span all sets)
+      const dateCell = isFirstRowOfWorkout && exerciseIndex === 0 && setIndex === 0 
+        ? `<td rowspan="${totalSets}" class="workout-date-cell">${formatDate(workout.date)}</td>`
+        : '';
+      
+      // Show exercise name only on first set of each exercise (using rowspan)
+      const exerciseNameCell = setIndex === 0
+        ? `<td rowspan="${exercise.sets.length}" class="exercise-name-cell">${escapeHtml(exercise.exerciseName)}</td>`
+        : '';
+      
       // Actions column - show edit button only on first row of workout
+      // This edits the ENTIRE workout session (all exercises and sets), not just this row
       let actionsCell = '<td></td>';
       if (isFirstRowOfWorkout && exerciseIndex === 0 && setIndex === 0) {
         actionsCell = `
-          <td class="workout-actions">
-            <button class="btn-icon btn-secondary edit-workout-btn" data-workout-id="${workout.workoutId}" title="Edit Workout">Edit</button>
+          <td rowspan="${totalSets}" class="workout-actions workout-actions-cell">
+            <button class="btn-icon btn-secondary edit-workout-btn" data-workout-id="${workout.workoutId}" title="Edit entire workout session (all ${totalSets} sets)">Edit</button>
           </td>
         `;
         isFirstRowOfWorkout = false;
       }
       
       row.innerHTML = `
-        <td>${formatDate(workout.date)}</td>
-        <td>${escapeHtml(exercise.exerciseName)}</td>
+        ${dateCell}
+        ${exerciseNameCell}
         <td>${escapeHtml(weightReps)}</td>
         <td>${volume.toLocaleString()}</td>
         <td>${escapeHtml(set.notes || workout.notes || '')}</td>
@@ -958,6 +1081,11 @@ function renderWorkoutRows(workout) {
       elements.workoutHistoryBody.appendChild(row);
     });
   });
+}
+
+// Helper function to count total sets in a workout
+function getTotalSetCount(workout) {
+  return workout.exercises.reduce((total, exercise) => total + (exercise.sets?.length || 0), 0);
 }
 
 // Helper function to attach event listeners to workout action buttons
@@ -1021,53 +1149,82 @@ async function handleAddWorkout(e) {
     const { canonicalizeExerciseName, normalizeExerciseName } = await import('/utils/exerciseNormalize.js');
     const canonicalExerciseName = canonicalizeExerciseName(formData.exercise);
 
-    // Find existing workout for this date, or create new structure
-    const existingWorkout = state.workouts.find(w => w.date === formData.date);
-    
-    let exercises = [];
-    if (existingWorkout) {
-      exercises = JSON.parse(JSON.stringify(existingWorkout.exercises)); // Deep copy
-    }
-
-    // Check if exercise already exists in this workout (using normalized comparison)
-    const exerciseIndex = exercises.findIndex(
-      ex => normalizeExerciseName(ex.exerciseName) === normalizeExerciseName(formData.exercise)
-    );
-
     const newSet = {
       reps: formData.reps,
       weight: formData.weight,
       notes: formData.notes || undefined,
     };
 
-    if (exerciseIndex >= 0) {
-      // Add set to existing exercise
-      exercises[exerciseIndex].sets.push(newSet);
+    let updatedWorkout;
+    
+    // If in an active session, merge entries into the current session workout
+    if (state.isInSession && state.currentSessionWorkoutId) {
+      // Find the current session workout
+      const currentSessionWorkout = state.workouts.find(w => w.workoutId === state.currentSessionWorkoutId);
+      
+      if (currentSessionWorkout) {
+        // Merge new entry into existing session workout
+        const exercises = JSON.parse(JSON.stringify(currentSessionWorkout.exercises)); // Deep copy
+        
+        // Check if exercise already exists in this workout
+        const exerciseIndex = exercises.findIndex(
+          ex => normalizeExerciseName(ex.exerciseName) === normalizeExerciseName(formData.exercise)
+        );
+
+        if (exerciseIndex >= 0) {
+          // Add set to existing exercise
+          exercises[exerciseIndex].sets.push(newSet);
+        } else {
+          // Create new exercise
+          exercises.push({
+            exerciseName: canonicalExerciseName,
+            sets: [newSet],
+          });
+        }
+
+        // Update the workout
+        const workoutData = {
+          clientId: currentSessionWorkout.clientId, // Include clientId for validation
+          date: currentSessionWorkout.date,
+          exercises: exercises,
+          notes: formData.notes || currentSessionWorkout.notes,
+        };
+        
+        updatedWorkout = await apiCall(`/workouts/${state.currentSessionWorkoutId}`, {
+          method: 'PUT',
+          body: JSON.stringify(workoutData),
+        });
+
+        // Update workout in state
+        const index = state.workouts.findIndex(w => w.workoutId === state.currentSessionWorkoutId);
+        if (index !== -1) {
+          state.workouts[index] = updatedWorkout;
+        }
+      }
     } else {
-      // Create new exercise with canonical name
-      exercises.push({
+      // Create a new workout session (first entry in session)
+      const exercises = [{
         exerciseName: canonicalExerciseName,
         sets: [newSet],
+      }];
+
+      const workoutData = {
+        clientId: formData.clientId,
+        date: formData.date,
+        exercises: exercises,
+        notes: formData.notes,
+      };
+      
+      updatedWorkout = await apiCall('/workouts', {
+        method: 'POST',
+        body: JSON.stringify(workoutData),
       });
-    }
 
-    const workoutData = {
-      clientId: formData.clientId,
-      date: formData.date,
-      exercises: exercises,
-      notes: formData.notes,
-    };
-    const newWorkout = await apiCall('/workouts', {
-      method: 'POST',
-      body: JSON.stringify(workoutData),
-    });
-
-    // Update state - replace existing workout or add new one
-    if (existingWorkout) {
-      const index = state.workouts.findIndex(w => w.workoutId === existingWorkout.workoutId);
-      state.workouts[index] = newWorkout;
-    } else {
-      state.workouts.push(newWorkout);
+      // Store the workoutId for this session
+      state.currentSessionWorkoutId = updatedWorkout.workoutId;
+      
+      // Add new workout to state
+      state.workouts.push(updatedWorkout);
     }
 
     renderWorkoutHistory();
@@ -1082,6 +1239,12 @@ async function handleAddWorkout(e) {
       state.exerciseSuggestions.push(exerciseName);
       saveExerciseSuggestions();
     }
+    
+    // Show success notification
+    showSuccess('Workout entry added to session!');
+    
+    // Stay in session mode - don't navigate away
+    // User will click "End Session" or back button when done
   } catch (error) {
     // Task 51: Handle validation errors from server
     if (error.message.includes('validation') || error.message.includes('invalid') || error.message.includes('required')) {
@@ -1103,16 +1266,16 @@ async function handleAddWorkout(e) {
   }
 }
 
-// Helper function to show temporary success message (using error message component but with success styling)
+// Helper function to show temporary success message
 function showSuccess(message) {
-  const errorEl = elements.errorMessage;
-  errorEl.textContent = message;
-  errorEl.style.backgroundColor = 'var(--success)';
-  errorEl.style.display = 'block';
-  setTimeout(() => {
-    errorEl.style.display = 'none';
-    errorEl.style.backgroundColor = 'var(--error)'; // Reset color
-  }, 3000);
+  const successEl = elements.successMessage;
+  if (successEl) {
+    successEl.textContent = message;
+    successEl.style.display = 'block';
+    setTimeout(() => {
+      successEl.style.display = 'none';
+    }, 3000);
+  }
 }
 
 // Exercise Suggestions
@@ -1287,7 +1450,20 @@ async function updateWorkoutDefaults() {
 
 
 function formatDate(dateString) {
+  if (!dateString) return 'Unknown';
+  
+  // Handle ISO date strings (YYYY-MM-DD) directly without timezone conversion
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [year, month, day] = dateString.split('-');
+    return `${month}/${day}/${year}`;
+  }
+  
+  // Fallback to Date parsing for other formats
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) {
+    return dateString; // Return as-is if invalid
+  }
+  
   return date.toLocaleDateString('en-US', { 
     year: 'numeric', 
     month: '2-digit', 
@@ -1381,6 +1557,174 @@ function openWorkoutModalForEdit(workout) {
   elements.workoutModal.style.display = 'flex';
 }
 
+// Helper function to create a set div with delete button
+function createEditSetDiv(exerciseIndex, setIndex, set) {
+  const setDiv = document.createElement('div');
+  setDiv.className = 'workout-edit-set';
+  setDiv.setAttribute('data-exercise-index', exerciseIndex);
+  setDiv.setAttribute('data-set-index', setIndex);
+  setDiv.innerHTML = `
+    <input type="number" class="edit-set-weight" value="${set.weight || 0}" 
+           min="0" step="0.5" placeholder="Weight" data-exercise-index="${exerciseIndex}" data-set-index="${setIndex}">
+    <input type="number" class="edit-set-reps" value="${set.reps || 0}" 
+           min="1" placeholder="Reps" data-exercise-index="${exerciseIndex}" data-set-index="${setIndex}">
+    <input type="text" class="edit-set-notes" value="${escapeHtml(set.notes || '')}" 
+           placeholder="Set notes (optional)" data-exercise-index="${exerciseIndex}" data-set-index="${setIndex}">
+    <button type="button" class="btn-delete-set" 
+            data-exercise-index="${exerciseIndex}" data-set-index="${setIndex}" 
+            title="Delete set">
+      ×
+    </button>
+  `;
+  
+  // Add delete button event listener
+  const deleteBtn = setDiv.querySelector('.btn-delete-set');
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', () => handleDeleteSet(exerciseIndex, setIndex));
+  }
+  
+  return setDiv;
+}
+
+function handleAddSetToExercise(exerciseIndex) {
+  // Find the exercise container
+  const exerciseDiv = elements.editWorkoutExercisesContainer.querySelector(
+    `.workout-edit-exercise[data-exercise-index="${exerciseIndex}"]`
+  );
+  
+  if (!exerciseDiv) return;
+  
+  // Find the sets container
+  const setsContainer = exerciseDiv.querySelector('.workout-edit-sets');
+  if (!setsContainer) return;
+  
+  // Get current number of sets (excluding the "Add Set" button)
+  const existingSets = setsContainer.querySelectorAll('.workout-edit-set');
+  const newSetIndex = existingSets.length;
+  
+  // Find the "Add Set" button (it's the last child)
+  const addSetBtn = setsContainer.querySelector('.btn-add-set');
+  
+  // Create new set div
+  const setDiv = createEditSetDiv(exerciseIndex, newSetIndex, { weight: 0, reps: 0, notes: '' });
+  
+  // Insert before the "Add Set" button
+  if (addSetBtn) {
+    setsContainer.insertBefore(setDiv, addSetBtn);
+  } else {
+    setsContainer.appendChild(setDiv);
+  }
+  
+  // Focus on the weight input for better UX
+  const weightInput = setDiv.querySelector('.edit-set-weight');
+  if (weightInput) {
+    weightInput.focus();
+  }
+}
+
+function handleDeleteSet(exerciseIndex, setIndex) {
+  // Find the exercise container
+  const exerciseDiv = elements.editWorkoutExercisesContainer.querySelector(
+    `.workout-edit-exercise[data-exercise-index="${exerciseIndex}"]`
+  );
+  
+  if (!exerciseDiv) return;
+  
+  // Find the sets container
+  const setsContainer = exerciseDiv.querySelector('.workout-edit-sets');
+  if (!setsContainer) return;
+  
+  // Find the set to delete
+  const setToDelete = setsContainer.querySelector(
+    `.workout-edit-set[data-exercise-index="${exerciseIndex}"][data-set-index="${setIndex}"]`
+  );
+  
+  if (!setToDelete) return;
+  
+  // Check if this is the last set - if so, remove the entire exercise
+  const allSets = setsContainer.querySelectorAll('.workout-edit-set');
+  if (allSets.length <= 1) {
+    // Remove the entire exercise
+    exerciseDiv.remove();
+    // Re-index all exercises after removal
+    reindexAllExercises();
+    return;
+  }
+  
+  // Remove the set
+  setToDelete.remove();
+  
+  // Re-index remaining sets
+  reindexSets(exerciseIndex);
+}
+
+function reindexSets(exerciseIndex) {
+  // Find the exercise container
+  const exerciseDiv = elements.editWorkoutExercisesContainer.querySelector(
+    `.workout-edit-exercise[data-exercise-index="${exerciseIndex}"]`
+  );
+  
+  if (!exerciseDiv) return;
+  
+  // Find the sets container
+  const setsContainer = exerciseDiv.querySelector('.workout-edit-sets');
+  if (!setsContainer) return;
+  
+  // Get all sets (excluding the "Add Set" button)
+  const sets = setsContainer.querySelectorAll('.workout-edit-set');
+  
+  // Re-index each set
+  sets.forEach((setDiv, newIndex) => {
+    setDiv.setAttribute('data-set-index', newIndex);
+    
+    // Update all inputs within this set
+    const inputs = setDiv.querySelectorAll('input');
+    inputs.forEach(input => {
+      input.setAttribute('data-set-index', newIndex);
+    });
+    
+    // Update delete button - replace it to reset event listener
+    const deleteBtn = setDiv.querySelector('.btn-delete-set');
+    if (deleteBtn) {
+      const oldDeleteBtn = deleteBtn;
+      const newDeleteBtn = oldDeleteBtn.cloneNode(true);
+      newDeleteBtn.setAttribute('data-set-index', newIndex);
+      oldDeleteBtn.replaceWith(newDeleteBtn);
+      newDeleteBtn.addEventListener('click', () => handleDeleteSet(exerciseIndex, newIndex));
+    }
+  });
+}
+
+function reindexAllExercises() {
+  // Get all exercises
+  const exercises = elements.editWorkoutExercisesContainer.querySelectorAll('.workout-edit-exercise');
+  
+  // Re-index each exercise and its sets
+  exercises.forEach((exerciseDiv, newExerciseIndex) => {
+    exerciseDiv.setAttribute('data-exercise-index', newExerciseIndex);
+    
+    // Update exercise name input
+    const exerciseNameInput = exerciseDiv.querySelector('.workout-edit-exercise-name');
+    if (exerciseNameInput) {
+      exerciseNameInput.setAttribute('data-exercise-index', newExerciseIndex);
+    }
+    
+    // Update "Add Set" button
+    const addSetBtn = exerciseDiv.querySelector('.btn-add-set');
+    if (addSetBtn) {
+      addSetBtn.setAttribute('data-exercise-index', newExerciseIndex);
+      // Replace button to reset event listener
+      const oldAddSetBtn = addSetBtn;
+      const newAddSetBtn = oldAddSetBtn.cloneNode(true);
+      oldAddSetBtn.replaceWith(newAddSetBtn);
+      newAddSetBtn.addEventListener('click', () => handleAddSetToExercise(newExerciseIndex));
+    }
+    
+    // Re-index all sets in this exercise
+    reindexSets(newExerciseIndex);
+  });
+}
+
 function renderEditWorkoutExercises(exercises) {
   elements.editWorkoutExercisesContainer.innerHTML = '';
   
@@ -1406,25 +1750,76 @@ function renderEditWorkoutExercises(exercises) {
     setsContainer.innerHTML = '<label style="font-size: 0.9rem; color: var(--text-secondary);">Sets:</label>';
     
     exercise.sets.forEach((set, setIndex) => {
-      const setDiv = document.createElement('div');
-      setDiv.className = 'workout-edit-set';
-      setDiv.setAttribute('data-exercise-index', exerciseIndex);
-      setDiv.setAttribute('data-set-index', setIndex);
-      setDiv.innerHTML = `
-        <input type="number" class="edit-set-weight" value="${set.weight || 0}" 
-               min="0" step="0.5" placeholder="Weight" data-exercise-index="${exerciseIndex}" data-set-index="${setIndex}">
-        <input type="number" class="edit-set-reps" value="${set.reps || 0}" 
-               min="1" placeholder="Reps" data-exercise-index="${exerciseIndex}" data-set-index="${setIndex}">
-        <input type="text" class="edit-set-notes" value="${escapeHtml(set.notes || '')}" 
-               placeholder="Set notes (optional)" data-exercise-index="${exerciseIndex}" data-set-index="${setIndex}">
-      `;
+      const setDiv = createEditSetDiv(exerciseIndex, setIndex, set);
       setsContainer.appendChild(setDiv);
     });
+    
+    // Add "Add Set" button for this exercise
+    const addSetBtn = document.createElement('button');
+    addSetBtn.type = 'button';
+    addSetBtn.className = 'btn-icon btn-secondary btn-add-set';
+    addSetBtn.setAttribute('data-exercise-index', exerciseIndex);
+    addSetBtn.innerHTML = '<span style="font-size: 1rem;">+</span> Add Set';
+    addSetBtn.style.marginTop = '0.5rem';
+    addSetBtn.addEventListener('click', () => handleAddSetToExercise(exerciseIndex));
+    setsContainer.appendChild(addSetBtn);
     
     exerciseDiv.appendChild(exerciseHeader);
     exerciseDiv.appendChild(setsContainer);
     elements.editWorkoutExercisesContainer.appendChild(exerciseDiv);
   });
+}
+
+function handleAddExerciseToEdit() {
+  // Get current number of exercises
+  const existingExercises = elements.editWorkoutExercisesContainer.querySelectorAll('.workout-edit-exercise');
+  const exerciseIndex = existingExercises.length;
+  
+  // Remove "no exercises" message if present
+  const noDataMessage = elements.editWorkoutExercisesContainer.querySelector('.no-data-message');
+  if (noDataMessage) {
+    noDataMessage.remove();
+  }
+  
+  // Create new exercise div
+  const exerciseDiv = document.createElement('div');
+  exerciseDiv.className = 'workout-edit-exercise';
+  exerciseDiv.setAttribute('data-exercise-index', exerciseIndex);
+  
+  const exerciseHeader = document.createElement('div');
+  exerciseHeader.className = 'workout-edit-exercise-header';
+  exerciseHeader.innerHTML = `
+    <input type="text" class="workout-edit-exercise-name" value="" 
+           data-exercise-index="${exerciseIndex}" placeholder="Exercise name" required>
+  `;
+  
+  const setsContainer = document.createElement('div');
+  setsContainer.className = 'workout-edit-sets';
+  setsContainer.innerHTML = '<label style="font-size: 0.9rem; color: var(--text-secondary);">Sets:</label>';
+  
+  // Add one empty set
+  const setDiv = createEditSetDiv(exerciseIndex, 0, { weight: 0, reps: 0, notes: '' });
+  setsContainer.appendChild(setDiv);
+  
+  // Add "Add Set" button for this exercise
+  const addSetBtn = document.createElement('button');
+  addSetBtn.type = 'button';
+  addSetBtn.className = 'btn-icon btn-secondary btn-add-set';
+  addSetBtn.setAttribute('data-exercise-index', exerciseIndex);
+  addSetBtn.innerHTML = '<span style="font-size: 1rem;">+</span> Add Set';
+  addSetBtn.style.marginTop = '0.5rem';
+  addSetBtn.addEventListener('click', () => handleAddSetToExercise(exerciseIndex));
+  setsContainer.appendChild(addSetBtn);
+  
+  exerciseDiv.appendChild(exerciseHeader);
+  exerciseDiv.appendChild(setsContainer);
+  elements.editWorkoutExercisesContainer.appendChild(exerciseDiv);
+  
+  // Focus on the exercise name input for better UX
+  const exerciseNameInput = exerciseDiv.querySelector('.workout-edit-exercise-name');
+  if (exerciseNameInput) {
+    exerciseNameInput.focus();
+  }
 }
 
 function closeWorkoutModal() {
@@ -1505,7 +1900,15 @@ async function handleWorkoutEditFormSubmit(e) {
       }
     });
     
+    // Find the workout being edited to get clientId
+    const workoutBeingEdited = state.workouts.find(w => w.workoutId === state.editingWorkoutId);
+    if (!workoutBeingEdited) {
+      showError('Workout not found');
+      return;
+    }
+    
     const workoutData = {
+      clientId: workoutBeingEdited.clientId, // Include clientId for validation
       date,
       exercises,
       notes,

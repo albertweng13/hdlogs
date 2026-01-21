@@ -6,7 +6,7 @@ import { randomUUID } from 'crypto';
 /**
  * Google Sheets API Client
  * 
- * This module provides functions to interact with Google Sheets for the Warbak Trainer app.
+ * This module provides functions to interact with Google Sheets for the hdlogs app.
  * 
  * Sheet Structure:
  * 
